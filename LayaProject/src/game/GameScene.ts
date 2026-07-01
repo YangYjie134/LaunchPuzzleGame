@@ -1,6 +1,9 @@
 import { GameConfig } from "./GameConfig";
 import { Ball } from "../objects/Ball";
 import { Target } from "../objects/Target";
+import { Platform } from "../objects/Platform";
+import { LevelData } from "../levels/LevelData";
+import { LevelLoader } from "../levels/LevelLoader";
 
 export interface IGameSceneCallbacks {
     onReset: () => void;
@@ -47,6 +50,7 @@ export class GameScene {
 
     // ── 状态 ──────────────────────────────────────────────────────
     private _levelIndex: number;
+    private _level: LevelData;
     private _callbacks: IGameSceneCallbacks;
     private _state: OrbState = 'ready';
     private _dragX: number = 0;
@@ -55,13 +59,11 @@ export class GameScene {
     // ── 常量 ──────────────────────────────────────────────────────
     /** 鼠标点击必须在此半径内才能开始拖拽 */
     private static readonly CLICK_RADIUS = 42;
-    /** 固定发射点坐标 */
-    private static readonly START_X = 120;
-    private static readonly START_Y = 470;
 
     // ─────────────────────────────────────────────────────────────
     constructor(levelIndex: number, callbacks: IGameSceneCallbacks) {
         this._levelIndex = levelIndex;
+        this._level      = LevelLoader.get(levelIndex);
         this._callbacks  = callbacks;
         this.container   = new Laya.Sprite();
         this._build();
@@ -93,8 +95,20 @@ export class GameScene {
         groundLabel.pos(GameConfig.CANVAS_W / 2 - 52, GameConfig.CANVAS_H - 20);
         this.container.addChild(groundLabel);
 
-        // 传送门（目标）
-        this._target = new Target(650, 420);
+        // 平台（关卡数据驱动，仅绘制外观，不接入碰撞 —— R4.3 范围内）
+        const platformsLayer = new Laya.Sprite();
+        for (const platformData of this._level.platforms) {
+            const platform = new Platform(platformData);
+            platform.drawTo(platformsLayer);
+        }
+        this.container.addChild(platformsLayer);
+
+        // 传送门（目标，位置/半径来自关卡数据）
+        this._target = new Target(
+            this._level.target.x,
+            this._level.target.y,
+            this._level.target.radius ?? GameConfig.TARGET_RADIUS
+        );
         const targetSp = new Laya.Sprite();
         this._target.drawTo(targetSp);
         this.container.addChild(targetSp);
@@ -103,9 +117,9 @@ export class GameScene {
         this._aimLayer = new Laya.Sprite();
         this.container.addChild(this._aimLayer);
 
-        // 能量球
+        // 能量球（发射点来自关卡数据）
         this._ball = new Ball(
-            GameScene.START_X, GameScene.START_Y, GameConfig.BALL_RADIUS
+            this._level.launchPoint.x, this._level.launchPoint.y, GameConfig.BALL_RADIUS
         );
         this._ballSprite = new Laya.Sprite();
         this._drawOrbGraphics();
@@ -143,7 +157,7 @@ export class GameScene {
         this.container.addChild(levelLabel);
 
         this._hintText = new Laya.Text();
-        this._hintText.text     = "Drag the energy orb to charge";
+        this._hintText.text     = this._level.hint ?? "Drag the energy orb to charge";
         this._hintText.color    = "#aaaacc";
         this._hintText.fontSize = 14;
         this._hintText.pos(20, 48);
@@ -409,7 +423,7 @@ export class GameScene {
 
         switch (this._state) {
             case 'ready':
-                this._hintText.text  = "Drag the energy orb to charge";
+                this._hintText.text  = this._level.hint ?? "Drag the energy orb to charge";
                 this._hintText.color = "#aaaacc";
                 break;
             case 'flying':
