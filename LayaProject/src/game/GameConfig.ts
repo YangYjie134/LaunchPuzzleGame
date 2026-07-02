@@ -20,8 +20,7 @@ export class GameConfig {
     /** 最大蓄力拖拽距离（像素） */
     static readonly MAX_DRAG: number = 150;
     /** 最大蓄力时的初速度（像素/秒）。MAX_DRAG 拉满时等于此值 */
-    static readonly LAUNCH_SPEED_MAX: number = 800;
-
+    static readonly LAUNCH_SPEED_MAX: number = Math.hypot(GameConfig.CANVAS_W, GameConfig.CANVAS_H);
     /** 目标区域半径（像素） */
     static readonly TARGET_RADIUS: number = 28;
 

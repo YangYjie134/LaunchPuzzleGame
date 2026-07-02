@@ -4,6 +4,7 @@ import { Target } from "../objects/Target";
 import { Platform } from "../objects/Platform";
 import { LevelData } from "../levels/LevelData";
 import { LevelLoader } from "../levels/LevelLoader";
+import { PhysicsEngine, RectBounds } from "../physics/PhysicsEngine";
 
 export interface IGameSceneCallbacks {
     onReset: () => void;
@@ -56,6 +57,12 @@ export class GameScene {
     private _dragX: number = 0;
     private _dragY: number = 0;
 
+    // ── 物理（R4.4：接入 PhysicsEngine） ──────────────────────────
+    /** 固定步长累加器，由 _stepPhysics() 累加/消耗，PhysicsEngine 自身不持有此状态 */
+    private _physicsAccumulator: number = 0;
+    /** 平台碰撞包围盒缓存，_build() 时一次性收集，供 PhysicsEngine.step() 使用 */
+    private _platformBounds: RectBounds[] = [];
+
     // ── 常量 ──────────────────────────────────────────────────────
     /** 鼠标点击必须在此半径内才能开始拖拽 */
     private static readonly CLICK_RADIUS = 42;
@@ -95,11 +102,12 @@ export class GameScene {
         groundLabel.pos(GameConfig.CANVAS_W / 2 - 52, GameConfig.CANVAS_H - 20);
         this.container.addChild(groundLabel);
 
-        // 平台（关卡数据驱动，仅绘制外观，不接入碰撞 —— R4.3 范围内）
+        // 平台（关卡数据驱动；R4.4 起同时收集 bounds 供 PhysicsEngine 碰撞检测）
         const platformsLayer = new Laya.Sprite();
         for (const platformData of this._level.platforms) {
             const platform = new Platform(platformData);
             platform.drawTo(platformsLayer);
+            this._platformBounds.push(platform.getBounds());
         }
         this.container.addChild(platformsLayer);
 
@@ -351,38 +359,47 @@ export class GameScene {
         this._hintText.color = "#ffffff";
     }
 
-    // ── 物理步进 ──────────────────────────────────────────────────
-    private _stepPhysics(dt: number): void {
-        const b = this._ball;
-        const r = b.radius;
-        const W = GameConfig.CANVAS_W;
-        const H = GameConfig.CANVAS_H;
+    // ── 物理步进（R4.4：接入 PhysicsEngine，固定步长 accumulator） ──
+    /**
+     * 不再手写重力积分/位移积分/墙体反弹/触底判断——全部交给 PhysicsEngine.step()。
+     * 本函数只负责：
+     *  1. 把当前帧的可变 dt 累加进 _physicsAccumulator；
+     *  2. 按 PhysicsEngine.FIXED_DT 定步长消耗 accumulator，每消耗一步就调用
+     *     一次 PhysicsEngine.step()（同一帧可能因此多次调用，避免大 dt 隧穿，
+     *     accumulator 本身由本函数持有/维护，PhysicsEngine 不持有跨帧状态）；
+     *  3. 显式传入 context.bounds.groundY = GameConfig.CANVAS_H - 6，对齐阶段 2
+     *     原有的地面判定线（不能用 PhysicsEngine 默认的 groundY=height，否则
+     *     失败线会悄悄下移 6px，出现手感回归）；
+     *  4. 命中 shouldStopByPhysics 或 hitBottom 时调用 _onFail()（阶段 2 逻辑，
+     *     函数体本身不改）并立即 break——避免同一帧对已失败的球继续步进，
+     *     也避免 _onFail() 在同一帧被重复调用导致重复注册重生计时器。
+     * 目标传送门检测不在这里处理，reachedTarget 信号本轮不消费，仍由
+     * _update() 里现有的 this._target.contains(...) 负责（阶段 2 行为不变）。
+     * isLowSpeed / isTimedOut 本轮同样不消费，不接入低速/超时失败。
+     */
+    private _stepPhysics(frameDt: number): void {
+        this._physicsAccumulator += frameDt;
 
-        // 重力
-        b.vy += GameConfig.GRAVITY * dt;
+        while (this._physicsAccumulator >= PhysicsEngine.FIXED_DT) {
+            const result = PhysicsEngine.step(
+                this._ball,
+                this._platformBounds,
+                PhysicsEngine.FIXED_DT,
+                {
+                    bounds: {
+                        width:   GameConfig.CANVAS_W,
+                        height:  GameConfig.CANVAS_H,
+                        groundY: GameConfig.CANVAS_H - 6,
+                    },
+                }
+            );
+            this._physicsAccumulator -= PhysicsEngine.FIXED_DT;
 
-        // 位移
-        b.x += b.vx * dt;
-        b.y += b.vy * dt;
-
-        // 左墙（弹射）
-        if (b.x - r < 0) {
-            b.x  = r;
-            b.vx = Math.abs(b.vx) * GameConfig.BOUNCE;
-        }
-        // 右墙（弹射）
-        if (b.x + r > W) {
-            b.x  = W - r;
-            b.vx = -Math.abs(b.vx) * GameConfig.BOUNCE;
-        }
-        // 天花板（弹射）
-        if (b.y - r < 0) {
-            b.y  = r;
-            b.vy = Math.abs(b.vy) * GameConfig.BOUNCE;
-        }
-        // 底部地面 → 失败（不弹射）
-        if (b.y + r >= H - 6) {
-            this._onFail();
+            if (result.shouldStopByPhysics || result.hitBottom) {
+                this._onFail();
+                this._physicsAccumulator = 0; // 丢弃剩余零头，避免失败后继续步进
+                break;
+            }
         }
     }
 
