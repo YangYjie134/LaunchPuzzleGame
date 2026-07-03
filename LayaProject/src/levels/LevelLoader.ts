@@ -44,13 +44,10 @@ const LEVEL_2: LevelData = {
 const LEVEL_3: LevelData = {
     name: "Level 3",
     launchPoint: { x: 120, y: 470 },
-    target: { x: 430, y: 120, radius: 24 },
+    target: { x: 440, y: 320, radius: 24 },
     platforms: [
-        // 下方横板：贴近发射弧线，第一次改变方向
-        { x: 200, y: 420, w: 160, h: 20, color: "#2244aa" },
-        // 中部竖直挡板：把球从右侧推回中路
+        { x: 180, y: 420, w: 260, h: 20, color: "#2244aa" },
         { x: 480, y: 250, w: 20, h: 180, color: "#2244aa" },
-        // 左上方横板：贴近目标，最后一段需要绕过/借力
         { x: 150, y: 180, w: 220, h: 20, color: "#2244aa" },
     ],
     hint: "Chain multiple bounces to reach the portal",
