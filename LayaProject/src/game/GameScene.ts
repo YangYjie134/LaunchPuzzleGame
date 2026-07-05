@@ -79,10 +79,64 @@ export class GameScene {
     // ── 构建场景 ──────────────────────────────────────────────────
     private _build(): void {
 
-        // 背景
+        // 背景 —— 阳光清晨风格（副游戏视觉区分：主游戏 BallGame = 星空夜晚）
         const bg = new Laya.Sprite();
-        bg.graphics.drawRect(0, 0, GameConfig.CANVAS_W, GameConfig.CANVAS_H, "#0f0f23");
-        bg.size(GameConfig.CANVAS_W, GameConfig.CANVAS_H);
+        const W = GameConfig.CANVAS_W;
+        const H = GameConfig.CANVAS_H;
+
+        // 1) 浅蓝天空底色（再压暗一档，提升左上角文字对比度、降低整体亮度）
+        bg.graphics.drawRect(0, 0, W, H, "#acd6eb");
+
+        // 2) 太阳（右上角，柔和暖黄，光晕由外到内叠加；位置移至 Reset 按钮左侧，避免被按钮遮挡）
+        const sunX = W - 160;
+        const sunY = 72;
+        bg.graphics.drawCircle(sunX, sunY, 52, "rgba(255, 245, 200, 0.07)");
+        bg.graphics.drawCircle(sunX, sunY, 36, "rgba(255, 235, 160, 0.15)");
+        bg.graphics.drawCircle(sunX, sunY, 21, "#fff3b0", "#ffe27a", 2);
+
+        // 3) 阳光射线（透明度进一步降低，避免抢视觉）
+        const rayCount = 8;
+        const rayLen   = 130;
+        for (let i = 0; i < rayCount; i++) {
+            const angle = (Math.PI * 2 / rayCount) * i;
+            const x2 = sunX + Math.cos(angle) * rayLen;
+            const y2 = sunY + Math.sin(angle) * rayLen;
+            bg.graphics.drawLine(sunX, sunY, x2, y2, "rgba(255, 244, 190, 0.05)", 6);
+        }
+
+        // 4) 白云（2~3 朵，靠近顶部，避开左上 Level 文本与右上 Reset 按钮区域）
+        const drawCloud = (cx: number, cy: number, scale: number) => {
+            const a = "rgba(255, 255, 255, 0.85)";
+            bg.graphics.drawCircle(cx,            cy,            18 * scale, a);
+            bg.graphics.drawCircle(cx + 20 * scale, cy + 4 * scale, 14 * scale, a);
+            bg.graphics.drawCircle(cx - 20 * scale, cy + 4 * scale, 14 * scale, a);
+            bg.graphics.drawCircle(cx,            cy - 8 * scale, 14 * scale, a);
+        };
+        drawCloud(150, 110, 1.0);
+        drawCloud(330, 150, 0.8);
+        drawCloud(470, 90, 0.65);
+
+        // 5) 底部淡绿远山 / 地平线（留在红色失败线之上，不遮挡失败线 H-6）
+        const failLineY = H - 6;
+        const horizonY   = failLineY - 20; // 与失败线保持安全间距
+        // 淡绿地平线色块（从 horizonY 填到失败线上方为止，不覆盖失败线）
+        bg.graphics.drawRect(0, horizonY, W, failLineY - horizonY, "#dff5e1");
+        // 远山剪影（更淡的绿色，起伏由几段折线拼接模拟，底边贴合地平线色块，不越过失败线）
+        bg.graphics.drawPoly(0, 0, [
+            0, horizonY,
+            90, horizonY - 22,
+            190, horizonY,
+            300, horizonY - 30,
+            420, horizonY,
+            540, horizonY - 20,
+            660, horizonY,
+            760, horizonY - 26,
+            W, horizonY,
+            W, failLineY,
+            0, failLineY,
+        ], "rgba(178, 224, 186, 0.55)");
+
+        bg.size(W, H);
         this.container.addChild(bg);
 
         // 失败线（底部红色地面）
@@ -142,8 +196,18 @@ export class GameScene {
         Laya.stage.on(Laya.Event.MOUSE_MOVE, this, this._onMouseMove);
         Laya.stage.on(Laya.Event.MOUSE_UP,   this, this._onMouseUp);
 
+        // 键盘事件：R 键触发重置（替代原右上角 Reset 按钮，复用同一 onReset 回调）
+        Laya.stage.on(Laya.Event.KEY_DOWN, this, this._onKeyDown);
+
         // 主游戏循环
         Laya.timer.frameLoop(1, this, this._update);
+    }
+
+    /** R 键重置（复用原 Reset 按钮的 onReset 回调，语义不变） */
+    private _onKeyDown(e: Laya.Event): void {
+        if (e.keyCode === Laya.Keyboard.R) {
+            this._callbacks.onReset();
+        }
     }
 
     /** 能量球外观（绘制一次，后续只移动 Sprite） */
@@ -170,33 +234,6 @@ export class GameScene {
         this._hintText.fontSize = 14;
         this._hintText.pos(20, 48);
         this.container.addChild(this._hintText);
-
-        this._makeButton("Reset", GameConfig.CANVAS_W - 100, 16, () => {
-            this._callbacks.onReset();
-        });
-    }
-
-    private _makeButton(
-        label: string, x: number, y: number, onClick: () => void
-    ): void {
-        const btn = new Laya.Sprite();
-        btn.graphics.drawRect(0, 0, 84, 32, "#2a3a55", "#5566aa", 1);
-        btn.size(84, 32);
-        btn.mouseEnabled = true;
-        btn.pos(x, y);
-
-        const lbl = new Laya.Text();
-        lbl.text     = label;
-        lbl.color    = "#aaccee";
-        lbl.fontSize = 15;
-        lbl.bold     = true;
-        lbl.width    = 84;
-        lbl.align    = "center";
-        lbl.pos(0, 7);
-        btn.addChild(lbl);
-
-        btn.on(Laya.Event.CLICK, onClick);
-        this.container.addChild(btn);
     }
 
     // ── 鼠标事件 ──────────────────────────────────────────────────
@@ -344,12 +381,14 @@ export class GameScene {
             // 飞出屏幕则停止
             if (tx < 0 || tx > W || ty > H) break;
 
-            // 越远越淡越小
+            // 越远越淡越小（不透明度/半径的计算逻辑不变，仅调整颜色与描边以提升在浅色天空背景下的对比度）
             const opacity = ((MAX_DOT - i + 1) / (MAX_DOT + 1)) * 0.85;
-            const dotR    = Math.max(1.5, 3.5 - i * 0.25);
+            const dotR    = Math.max(2, 4.5 - i * 0.25);
             this._aimLayer.graphics.drawCircle(
                 tx, ty, dotR,
-                `rgba(100, 220, 255, ${opacity.toFixed(2)})`
+                `rgba(255, 209, 102, ${opacity.toFixed(2)})`,
+                `rgba(42, 58, 85, ${opacity.toFixed(2)})`,
+                1.5
             );
         }
 
@@ -464,6 +503,7 @@ export class GameScene {
         Laya.stage.off(Laya.Event.MOUSE_DOWN, this, this._onMouseDown);
         Laya.stage.off(Laya.Event.MOUSE_MOVE, this, this._onMouseMove);
         Laya.stage.off(Laya.Event.MOUSE_UP,   this, this._onMouseUp);
+        Laya.stage.off(Laya.Event.KEY_DOWN,   this, this._onKeyDown);
         this.container.removeSelf();
     }
 }
