@@ -5,6 +5,7 @@ import { Platform } from "../objects/Platform";
 import { LevelData } from "../levels/LevelData";
 import { LevelLoader } from "../levels/LevelLoader";
 import { PhysicsEngine, RectBounds } from "../physics/PhysicsEngine";
+import { AudioManager } from "../audio/AudioManager";
 
 export interface IGameSceneCallbacks {
     onReset: () => void;
@@ -249,6 +250,10 @@ export class GameScene {
 
         // 必须点在能量球附近
         if (Math.sqrt(dx * dx + dy * dy) > GameScene.CLICK_RADIUS) return;
+
+        // 首次真实玩家交互（拖拽蓄力开始）：启动 BGM。playBgmOnce() 内部有
+        // _bgmStarted 标记短路，切关/Restart 后再次触发本函数不会重复播放。
+        AudioManager.playBgmOnce();
 
         this._state = 'dragging';
         this._dragX = mx;

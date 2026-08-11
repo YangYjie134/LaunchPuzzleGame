@@ -123,3 +123,23 @@ Math.hypot(GameConfig.CANVAS_W, GameConfig.CANVAS_H)
 - 对 L3 做 layout tuning。
 - 增加平台顶角、薄平台、高速发射的专项测试。
 - 保留阶段 2 的失败/完成节奏，不要在物理接入时无意改变手感。
+
+## Background music (BGM)
+
+新增 `src/audio/AudioManager.ts`，职责仅限背景音乐播放，不涉及碰撞音效、失败音效、传送门音效，不新增音量设置 UI。
+
+- 播放入口：首次有效的真实玩家鼠标交互在 `GameScene._onMouseDown()` 中开始拖拽时调用 `AudioManager.playBgmOnce()`；无用户手势的 `GameManager.init()` 不启动 BGM。
+- 防重复叠加：`_bgmStarted` 标记位保证 `playBgmOnce()` 幂等；Restart / 切关 / R 键重置后再次交互不会叠加播放。
+- 音量：常量 `BGM_VOLUME = 0.22`，循环播放（`Laya.SoundManager.playMusic(url, 0)`，loops=0 表示无限循环）。
+- Project path: `assets/resources/audio/bgm.mp3`
+- Runtime path: `resources/audio/bgm.mp3`
+- WinScene 展示时不强制停止 BGM，`stopBgm()` 保留供后续扩展使用。
+
+### Music source
+
+- Music: Cozy Puzzle In-Game 3
+- Author: MintoDog
+- Source: OpenGameArt
+- License: CC0
+- Project path: `assets/resources/audio/bgm.mp3`
+- Runtime path: `resources/audio/bgm.mp3`
