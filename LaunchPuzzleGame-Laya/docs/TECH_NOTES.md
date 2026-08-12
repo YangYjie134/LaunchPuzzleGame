@@ -126,7 +126,7 @@ Math.hypot(GameConfig.CANVAS_W, GameConfig.CANVAS_H)
 
 ## Background music (BGM)
 
-新增 `src/audio/AudioManager.ts`，职责仅限背景音乐播放，不涉及碰撞音效、失败音效、传送门音效，不新增音量设置 UI。
+BGM round 新增 `src/audio/AudioManager.ts`；当时职责仅限背景音乐播放。后续 SFX round 在保持既有 BGM 行为不变的前提下，将该管理器扩展为同时管理四类已批准的 gameplay SFX；项目仍不提供音量设置 UI。
 
 - 播放入口：首次有效的真实玩家鼠标交互在 `GameScene._onMouseDown()` 中开始拖拽时调用 `AudioManager.playBgmOnce()`；无用户手势的 `GameManager.init()` 不启动 BGM。
 - 防重复叠加：`_bgmStarted` 标记位保证 `playBgmOnce()` 幂等；Restart / 切关 / R 键重置后再次交互不会叠加播放。
