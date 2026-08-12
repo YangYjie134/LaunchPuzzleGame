@@ -269,6 +269,11 @@ export class GameScene {
     private _onMouseUp(): void {
         if (this._state !== 'dragging') return;
         this._launch();
+
+        // 有效发射后播放 launch SFX（短拖拽取消时 state 仍为 ready，不播放）
+        if (this._state === 'flying') {
+            AudioManager.playLaunchSfx();
+        }
     }
 
     // ── 发射（反向充能） ──────────────────────────────────────────
@@ -330,6 +335,7 @@ export class GameScene {
             this._target.contains(this._ball.x, this._ball.y)
         ) {
             this._onPortalReached();
+            AudioManager.playPortalSfx();
             return;
         }
 
@@ -414,8 +420,8 @@ export class GameScene {
      *  3. 显式传入 context.bounds.groundY = GameConfig.CANVAS_H - 6，对齐阶段 2
      *     原有的地面判定线（不能用 PhysicsEngine 默认的 groundY=height，否则
      *     失败线会悄悄下移 6px，出现手感回归）；
-     *  4. 命中 shouldStopByPhysics 或 hitBottom 时调用 _onFail()（阶段 2 逻辑，
-     *     函数体本身不改）并立即 break——避免同一帧对已失败的球继续步进，
+     *  4. 命中 shouldStopByPhysics 或 hitBottom 时调用 _onFail()（阶段 2 状态和
+     *     计时逻辑保持不变，仅增加失败音效）并立即 break——避免同一帧对已失败的球继续步进，
      *     也避免 _onFail() 在同一帧被重复调用导致重复注册重生计时器。
      * 目标传送门检测不在这里处理，reachedTarget 信号本轮不消费，仍由
      * _update() 里现有的 this._target.contains(...) 负责（阶段 2 行为不变）。
@@ -441,8 +447,15 @@ export class GameScene {
 
             if (result.shouldStopByPhysics || result.hitBottom) {
                 this._onFail();
+                AudioManager.playFailSfx();
                 this._physicsAccumulator = 0; // 丢弃剩余零头，避免失败后继续步进
                 break;
+            }
+
+            // 只消费 PhysicsEngine 已上报的墙体/平台信号，不修改碰撞解算；
+            // AudioManager 内部冷却避免固定步长连续触发造成音效刷屏。
+            if (result.hitWall || result.hitPlatform) {
+                AudioManager.playCollisionSfx();
             }
         }
     }

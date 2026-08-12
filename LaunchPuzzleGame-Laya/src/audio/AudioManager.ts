@@ -1,9 +1,11 @@
 /**
  * AudioManager.ts
- * 轻量背景音乐（BGM）管理器。
+ * 轻量音频管理器：负责背景音乐（BGM）与本轮已批准的游戏音效（SFX）。
  *
- * 职责边界（本轮范围）：
- *  - 只负责 BGM 的播放/停止，不涉及碰撞音效、失败音效、传送门音效。
+ * 职责边界：
+ *  - BGM 继续保持幂等启动与停止行为。
+ *  - SFX 仅包括发射、墙体/平台碰撞、传送门通关、失败四类。
+ *  - 本轮没有已批准的重生音效资源，因此不在 _respawn() 播放音效。
  *  - 不提供音量设置 UI，音量为代码内常量。
  *  - 不引入新的玩法逻辑，不依赖/不修改 GameScene、GameManager 的状态机。
  *
@@ -20,11 +22,26 @@ export class AudioManager {
     /** BGM 资源路径。相对 assets 根目录，与项目现有 assets/resources 资源习惯保持一致 */
     private static readonly BGM_URL: string = "resources/audio/bgm.mp3";
 
+    /** 已批准 SFX 的运行时资源路径 */
+    private static readonly SFX_LAUNCH_URL: string = "resources/audio/sfx_launch.mp3";
+    private static readonly SFX_COLLISION_URL: string = "resources/audio/sfx_collision.wav";
+    private static readonly SFX_PORTAL_URL: string = "resources/audio/sfx_portal.wav";
+    private static readonly SFX_FAIL_URL: string = "resources/audio/sfx_fail.mp3";
+
     /** 低音量循环播放，避免刺耳、避免抢游戏反馈音效的听觉空间 */
     private static readonly BGM_VOLUME: number = 0.22;
 
+    /** SFX 使用独立声道音量，不修改 BGM 的 musicVolume */
+    private static readonly SFX_VOLUME: number = 0.6;
+
+    /** 固定步长物理可能在很短时间内连续上报碰撞；冷却用于避免声音堆叠 */
+    private static readonly COLLISION_SFX_COOLDOWN_MS: number = 100;
+
     /** 是否已经启动过 BGM；true 之后 playBgmOnce() 直接短路，防止重复叠加播放 */
     private static _bgmStarted: boolean = false;
+
+    /** 最近一次实际触发碰撞音效的引擎时间 */
+    private static _lastCollisionSfxAtMs: number = -Infinity;
 
     /**
      * 启动 BGM（幂等）。
@@ -50,6 +67,35 @@ export class AudioManager {
         AudioManager._bgmStarted = false;
     }
 
+    /** 有效发射后播放一次；短拖拽取消不会调用本接口 */
+    static playLaunchSfx(): void {
+        AudioManager._playSfxInternal(AudioManager.SFX_LAUNCH_URL, "launch");
+    }
+
+    /**
+     * 墙体或平台碰撞后播放一次。
+     * 100ms 冷却阻止同一帧多个固定步长或持续接触造成的碰撞音效刷屏。
+     */
+    static playCollisionSfx(): void {
+        const now = Laya.timer.currTimer;
+        if (now - AudioManager._lastCollisionSfxAtMs < AudioManager.COLLISION_SFX_COOLDOWN_MS) {
+            return;
+        }
+
+        AudioManager._lastCollisionSfxAtMs = now;
+        AudioManager._playSfxInternal(AudioManager.SFX_COLLISION_URL, "collision");
+    }
+
+    /** 进入传送门并切换到 completed 状态时播放一次 */
+    static playPortalSfx(): void {
+        AudioManager._playSfxInternal(AudioManager.SFX_PORTAL_URL, "portal");
+    }
+
+    /** 进入 respawning 失败状态时播放一次 */
+    static playFailSfx(): void {
+        AudioManager._playSfxInternal(AudioManager.SFX_FAIL_URL, "fail");
+    }
+
     // ── 内部 ──────────────────────────────────────────────────────
     private static _playInternal(): void {
         Laya.SoundManager.musicVolume = AudioManager.BGM_VOLUME;
@@ -62,6 +108,15 @@ export class AudioManager {
             // 当前播放入口位于 GameScene._onMouseDown() 的首次有效玩家交互中，
             // 此处仅记录异常，不修改输入或玩法逻辑。
             console.warn("[AudioManager] BGM playback failed, will not retry automatically:", e);
+        }
+    }
+
+    private static _playSfxInternal(url: string, label: string): void {
+        try {
+            const channel = Laya.SoundManager.playSound(url, 1);
+            channel.volume = AudioManager.SFX_VOLUME;
+        } catch (e) {
+            console.warn(`[AudioManager] ${label} SFX playback failed:`, e);
         }
     }
 }

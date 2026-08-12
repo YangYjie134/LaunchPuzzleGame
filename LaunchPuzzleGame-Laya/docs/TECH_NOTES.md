@@ -143,3 +143,25 @@ Math.hypot(GameConfig.CANVAS_W, GameConfig.CANVAS_H)
 - License: CC0
 - Project path: `assets/resources/audio/bgm.mp3`
 - Runtime path: `resources/audio/bgm.mp3`
+
+## Sound effects (SFX)
+
+`AudioManager` 负责本轮四类已批准音效，不改变物理计算、关卡数据或场景流程：
+
+- Launch：有效拖拽通过最短距离判断、状态切换到 `flying` 后播放；短拖拽取消不播放。
+- Collision：只消费 `PhysicsEngine.step()` 已有的 `hitWall` / `hitPlatform` 信号；`AudioManager` 使用 100ms 冷却避免固定步长连续触发造成声音堆叠。终止飞行的地面失败步骤只播放 Fail，不同时播放 Collision。
+- Portal：进入传送门并切换到 `completed` 状态时播放一次。
+- Fail：进入 `respawning` 状态时播放一次；1 秒重生计时与 `_respawn()` 行为不变。
+- Respawn：本轮没有已批准的独立资源，因此不添加重生音效。
+- SFX 声道音量：`0.6`；不修改 BGM 的 `musicVolume = 0.22`。
+
+### SFX sources
+
+所有音效均来自 OpenGameArt，并按项目运行时资源规则存放在 `assets/resources/audio/`，代码使用 `resources/audio/` URL。
+
+| Event | OpenGameArt source | Author | License | Source file | Project / runtime path |
+| --- | --- | --- | --- | --- | --- |
+| Launch | [Boost or Launch or Thruster Sound Effect](https://opengameart.org/content/boost-or-launch-or-thruster-sound-effect) | EZduzziteh | CC0 | `boost.mp3` | `assets/resources/audio/sfx_launch.mp3` / `resources/audio/sfx_launch.mp3` |
+| Collision | [Metal Impact Sounds](https://opengameart.org/content/metal-impact-sounds) | BMacZero | CC0 | `thud3.wav` | `assets/resources/audio/sfx_collision.wav` / `resources/audio/sfx_collision.wav` |
+| Portal | [Teleport](https://opengameart.org/content/teleport) | fins | CC0 | `172206__fins__teleport.wav` | `assets/resources/audio/sfx_portal.wav` / `resources/audio/sfx_portal.wav` |
+| Fail | [Game Over](https://opengameart.org/content/game-over-10) | GreyFrogGames | CC0 | `gameover.mp3` | `assets/resources/audio/sfx_fail.mp3` / `resources/audio/sfx_fail.mp3` |
