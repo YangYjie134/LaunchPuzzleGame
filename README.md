@@ -15,6 +15,15 @@ This project focuses on a complete playable loop, custom lightweight physics, le
   <img src="docs/showcase/win-scene.webp" alt="Final WinScene" width="49%">
 </p>
 
+## Play Online
+
+- **Browser demo:** [Play Launch Puzzle Game](https://yangyjie134.github.io/LaunchPuzzleGame/)
+- **Downloadable Web build:** [Latest GitHub Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/latest)
+
+The hosted demo is served through GitHub Pages. Audio begins after the first valid drag interaction because browsers restrict autoplay.
+
+中文说明：可直接通过上方链接在线试玩；浏览器首次有效拖拽后开始播放背景音乐。
+
 ---
 
 ## Features
@@ -54,9 +63,9 @@ This project focuses on a complete playable loop, custom lightweight physics, le
 3. Run or preview the project from the editor.
 4. Use the mouse to drag the orb and press `R` to reset the current level.
 
-For a published Web build, serve the build through local HTTP instead of opening it with `file://`. This repository does not currently publish an online-play URL.
+For the downloadable Web build, extract the Release archive and serve it through local HTTP instead of opening it with `file://`. The hosted GitHub Pages build is linked in **Play Online** above.
 
-中文说明：使用 LayaAir 3 IDE 打开 `LaunchPuzzleGame-Laya/` 后运行主场景；Web 构建应通过本地 HTTP 访问。
+中文说明：使用 LayaAir 3 IDE 打开 `LaunchPuzzleGame-Laya/` 后可运行主场景；也可直接在线试玩。下载版 Web 构建应通过本地 HTTP 访问。
 
 ---
 
@@ -154,9 +163,13 @@ Detailed runtime paths and integration notes are recorded in [`LaunchPuzzleGame-
 
 ## Current Limitations
 
-- No hosted standalone Web demo or online-play URL has been published yet.
 - Audio uses fixed in-code volumes and does not provide a settings UI.
 - The current project scope is intentionally limited to three levels.
+- The hosted build is a portfolio demo, not a commercial or store release.
+
+## Licensing
+
+No project-wide license is currently declared. Third-party engine files, LayaAir template assets, and CC0 audio are documented separately in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). That notice does not grant permission to reuse the project's original code, documentation, screenshots, or game design.
 
 ---
 
