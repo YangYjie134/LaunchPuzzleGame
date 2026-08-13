@@ -2,7 +2,9 @@
 
 > Personal project / 个人项目 | Independently developed / 独立开发
 
-![Reverse drag launch with trajectory preview](docs/showcase/drag-launch.webp)
+![Launch Puzzle Game gameplay flow: aim, platform bounce, and level completion](docs/showcase/gameplay-preview.gif)
+
+*Gameplay flow preview assembled from captured in-game states: aim and charge, platform bounce, and level completion.*
 
 A small-scope 2D physics launch puzzle built with **LayaAir 3** and **TypeScript**.
 
