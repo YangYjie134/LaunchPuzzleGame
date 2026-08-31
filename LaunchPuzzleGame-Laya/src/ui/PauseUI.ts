@@ -1,23 +1,29 @@
-import { GameConfig } from "./GameConfig";
+import { GameConfig } from "../game/GameConfig";
 
-export interface IWinSceneCallbacks {
-    onPlayAgain: () => void;
+export interface IPauseUICallbacks {
+    onResume: () => void;
+    onRestart: () => void;
     onMainMenu: () => void;
+    onToggleMute: () => boolean;
+    isMuted: () => boolean;
 }
 
-/** Sunny, callback-only final presentation. GameManager owns every transition. */
-export class WinScene {
+/** Presentation-only modal shown while GameScene owns a paused runtime state. */
+export class PauseUI {
 
     readonly container: Laya.Sprite;
 
-    private readonly _callbacks: IWinSceneCallbacks;
+    private readonly _callbacks: IPauseUICallbacks;
     private readonly _interactiveTargets: Laya.Sprite[] = [];
+    private _muteLabel: Laya.Text;
     private _actionLocked: boolean = false;
 
-    constructor(callbacks: IWinSceneCallbacks) {
+    constructor(callbacks: IPauseUICallbacks) {
         this._callbacks = callbacks;
         this.container = new Laya.Sprite();
         this.container.size(GameConfig.CANVAS_W, GameConfig.CANVAS_H);
+        this.container.mouseEnabled = true;
+        this.container.zOrder = 1000;
         this._build();
     }
 
@@ -25,44 +31,60 @@ export class WinScene {
         const W = GameConfig.CANVAS_W;
         const H = GameConfig.CANVAS_H;
 
-        const bg = new Laya.Sprite();
-        bg.graphics.drawRect(0, 0, W, H, "#acd6eb");
-        bg.graphics.drawCircle(W - 118, 86, 52, "rgba(255, 245, 200, 0.25)");
-        bg.graphics.drawCircle(W - 118, 86, 27, "#fff3b0", "#ffe27a", 2);
-        bg.graphics.drawPoly(0, 0, [
-            0, H - 58, 130, H - 94, 270, H - 58,
-            420, H - 102, 570, H - 58, 700, H - 86,
-            W, H - 58, W, H, 0, H,
-        ], "#c5e7cb");
-        bg.size(W, H);
-        this.container.addChild(bg);
+        const shade = new Laya.Sprite();
+        shade.graphics.drawRect(0, 0, W, H, "rgba(42, 58, 85, 0.42)");
+        shade.size(W, H);
+        this.container.addChild(shade);
 
         const panel = new Laya.Sprite();
         panel.graphics.drawRoundRect(
-            0, 0, 520, 410,
-            28, 28, 28, 28,
-            "rgba(255, 252, 242, 0.96)", "rgba(255,255,255,0.92)", 2
+            0, 0, 390, 470,
+            26, 26, 26, 26,
+            "#fffaf0", "rgba(255,255,255,0.9)", 2
         );
-        panel.size(520, 410);
-        panel.pos(140, 95);
+        panel.size(390, 470);
+        panel.pos(205, 65);
         this.container.addChild(panel);
 
-        const title = this._makeText("ALL LEVELS CLEARED!", 40, "#2a3a55", true, 520);
+        const title = this._makeText("PAUSED", 42, "#2a3a55", true, 390);
         title.align = "center";
-        title.pos(140, 160);
+        title.pos(205, 105);
         this.container.addChild(title);
 
-        const sub = this._makeText("Three puzzles. One perfect portal run.", 18, "#65788f", false, 520);
+        const sub = this._makeText("Take a breath. Your launch is frozen.", 15, "#6f8195", false, 390);
         sub.align = "center";
-        sub.pos(140, 225);
+        sub.pos(205, 163);
         this.container.addChild(sub);
 
-        this.container.addChild(this._makeButton("PLAY AGAIN", 255, 310, 290, 58, true, () => {
-            this._activateOnce(this._callbacks.onPlayAgain);
+        this.container.addChild(this._makeButton("RESUME", 275, 220, 250, 56, true, () => {
+            this._activateOnce(this._callbacks.onResume);
         }));
-        this.container.addChild(this._makeButton("MAIN MENU", 255, 388, 290, 52, false, () => {
+        this.container.addChild(this._makeButton("RESTART", 275, 294, 250, 50, false, () => {
+            this._activateOnce(this._callbacks.onRestart);
+        }));
+        this.container.addChild(this._makeButton("MAIN MENU", 275, 360, 250, 50, false, () => {
             this._activateOnce(this._callbacks.onMainMenu);
         }));
+
+        const muteButton = this._makeButton("", 300, 440, 200, 46, false, () => {
+            this._callbacks.onToggleMute();
+            this._refreshMuteLabel();
+        });
+        this._muteLabel = muteButton.getChildAt(0) as Laya.Text;
+        this._refreshMuteLabel();
+        this.container.addChild(muteButton);
+
+        // A modal-level propagation stop blocks all overlay pointer events from
+        // reaching GameScene's stage listeners, including clicks outside buttons.
+        this.container.on(Laya.Event.MOUSE_DOWN, this, this._stopPropagation);
+        this.container.on(Laya.Event.MOUSE_MOVE, this, this._stopPropagation);
+        this.container.on(Laya.Event.MOUSE_UP, this, this._stopPropagation);
+        this.container.on(Laya.Event.CLICK, this, this._stopPropagation);
+        this._interactiveTargets.push(this.container);
+    }
+
+    private _stopPropagation(event: Laya.Event): void {
+        event.stopPropagation();
     }
 
     private _activateOnce(action: () => void): void {
@@ -71,6 +93,10 @@ export class WinScene {
         }
         this._actionLocked = true;
         action();
+    }
+
+    private _refreshMuteLabel(): void {
+        this._muteLabel.text = this._callbacks.isMuted() ? "MUTE: ON" : "MUTE: OFF";
     }
 
     private _makeText(
@@ -103,7 +129,7 @@ export class WinScene {
         button.pos(x, y);
         button.mouseEnabled = true;
 
-        const text = this._makeText(label, 20, primary ? "#ffffff" : "#2f4d57", true, width);
+        const text = this._makeText(label, 19, primary ? "#ffffff" : "#2f4d57", true, width);
         text.align = "center";
         text.height = height;
         text.valign = "middle";
@@ -114,7 +140,7 @@ export class WinScene {
                 ? (state === "pressed" ? "#d85849" : state === "hover" ? "#f27b68" : "#e96b5a")
                 : (state === "pressed" ? "#a9d8c5" : state === "hover" ? "#d2efe2" : "#bfe5d4");
             button.graphics.clear();
-            button.graphics.drawRoundRect(0, 0, width, height, 16, 16, 16, 16, fill);
+            button.graphics.drawRoundRect(0, 0, width, height, 14, 14, 14, 14, fill);
         };
 
         paint("normal");

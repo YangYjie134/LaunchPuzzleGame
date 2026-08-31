@@ -1,18 +1,12 @@
-import { GameScene, IGameSceneCallbacks } from "./GameScene";
-import { WinScene } from "./WinScene";
+import { AudioManager } from "../audio/AudioManager";
 import { LevelLoader } from "../levels/LevelLoader";
+import { HomeUI } from "../ui/HomeUI";
+import { GameScene, IGameSceneCallbacks } from "./GameScene";
+import { IWinSceneCallbacks, WinScene } from "./WinScene";
 
-/**
- * GameManager.ts
- * 全局状态机单例。管理关卡流程：启动关卡、切换下一关、重置当前关。
- * 由 Main.ts 的 onStart() 调用 GameManager.instance.init() 启动。
- *
- * R4.2：关卡总数改为以 LevelLoader.count 为唯一真源（不再依赖
- * GameConfig.TOTAL_LEVELS），通关界面改为接入真正的 WinScene。
- */
+/** Authoritative outer product flow: Cover -> Menu -> Game -> Win. */
 export class GameManager {
 
-    // ─── 单例 ────────────────────────────────────────────────────
     private static _instance: GameManager;
     static get instance(): GameManager {
         if (!GameManager._instance) {
@@ -21,26 +15,50 @@ export class GameManager {
         return GameManager._instance;
     }
 
-    // ─── 状态 ────────────────────────────────────────────────────
+    private _homeUI: HomeUI | null = null;
     private _currentScene: GameScene | null = null;
     private _currentWinScene: WinScene | null = null;
     private _currentLevel: number = 0;
 
     get currentLevel(): number { return this._currentLevel; }
 
-    // ─── 公共接口 ─────────────────────────────────────────────────
-    /** 游戏初始化入口，由 Main.ts 调用一次 */
+    /** Application entry point. Gameplay no longer auto-starts. */
     init(): void {
-        console.log(`[GameManager] init — 共 ${LevelLoader.count} 关`);
+        console.log(`[GameManager] init — ${LevelLoader.count} levels`);
+        this.showCover();
+    }
+
+    showCover(): void {
+        this._destroyAllPresentation();
+        const home = new HomeUI({
+            onCoverAccepted: () => this._acceptCover(),
+            onPlay: () => this.startNewGame(),
+        });
+        this._homeUI = home;
+        Laya.stage.addChild(home.container);
+        AudioManager.playBgmOnce();
+    }
+
+    showMainMenu(): void {
+        this._destroyAllPresentation();
+        const home = new HomeUI({
+            onCoverAccepted: () => this._acceptCover(),
+            onPlay: () => this.startNewGame(),
+        });
+        this._homeUI = home;
+        home.showMainMenu();
+        Laya.stage.addChild(home.container);
+    }
+
+    /** Menu PLAY and Win PLAY AGAIN converge on the same fresh Level 1 state. */
+    startNewGame(): void {
         this.startLevel(0);
     }
 
-    /** 启动指定关卡 */
+    /** Start one validated level after removing every previous product surface. */
     startLevel(index: number): void {
         console.log(`[GameManager] startLevel(${index})`);
 
-        // 关卡索引合法性校验：绝不让越界 index 在半清理状态下
-        // 直接把 LevelLoader.get() 的 RangeError 炸出来。
         if (!LevelLoader.isValidIndex(index)) {
             console.error(
                 `[GameManager] startLevel: invalid level index ${index} ` +
@@ -55,30 +73,19 @@ export class GameManager {
             return;
         }
 
-        // 销毁旧场景
-        if (this._currentScene) {
-            this._currentScene.destroy();
-            this._currentScene = null;
-        }
-
-        // 销毁旧通关界面（避免两个胜利界面同时存在）
-        if (this._currentWinScene) {
-            this._currentWinScene.destroy();
-            this._currentWinScene = null;
-        }
-
+        this._destroyAllPresentation();
         this._currentLevel = index;
 
         const callbacks: IGameSceneCallbacks = {
-            onReset:    () => this.restartLevel(),
+            onReset: () => this.restartCurrentLevel(),
             onComplete: () => this.nextLevel(),
+            onMainMenu: () => this.returnToMainMenu(),
         };
         const scene = new GameScene(index, callbacks);
         this._currentScene = scene;
         Laya.stage.addChild(scene.container);
     }
 
-    /** 进入下一关（关卡数量以 LevelLoader.count 为准） */
     nextLevel(): void {
         const next = this._currentLevel + 1;
         if (next >= LevelLoader.count) {
@@ -88,43 +95,75 @@ export class GameManager {
         }
     }
 
-    /** 重置当前关卡 */
-    restartLevel(): void {
+    restartCurrentLevel(): void {
         this.startLevel(this._currentLevel);
     }
 
-    // ─── 内部 ─────────────────────────────────────────────────────
-    /** 显示通关界面：接入真正的 WinScene，不再手写内联 UI */
-    private _showWin(): void {
-        console.log("[GameManager] You Win!");
+    returnToMainMenu(): void {
+        this.showMainMenu();
+    }
 
-        if (this._currentScene) {
-            this._currentScene.destroy();
-            this._currentScene = null;
+    private _acceptCover(): void {
+        if (!this._homeUI) {
+            return;
         }
+        AudioManager.restartBgm();
+        this._homeUI.showMainMenu();
+    }
 
-        // 已存在一个通关界面时不重复创建，避免两个胜利界面同时存在
+    private _showWin(): void {
+        console.log("[GameManager] All levels cleared");
+
+        this._destroyCurrentScene();
+        this._destroyHomeUI();
         if (this._currentWinScene) {
             return;
         }
 
-        const winScene = new WinScene(() => this._onWinRestart());
+        const callbacks: IWinSceneCallbacks = {
+            onPlayAgain: () => this._onWinPlayAgain(),
+            onMainMenu: () => this.returnToMainMenu(),
+        };
+        const winScene = new WinScene(callbacks);
         this._currentWinScene = winScene;
         Laya.stage.addChild(winScene.container);
     }
 
-    /**
-     * WinScene 的 Restart 回调：切关逻辑完全由 GameManager 决定，
-     * WinScene 本身不知道、也不负责切关。
-     * 先判空再销毁+置 null，防止 Restart 被重复点击时二次触发
-     * startLevel（第二次点击进来时 _currentWinScene 已经是 null）。
-     */
-    private _onWinRestart(): void {
+    private _onWinPlayAgain(): void {
+        if (!this._currentWinScene) {
+            return;
+        }
+        this._destroyWinScene();
+        this.startNewGame();
+    }
+
+    private _destroyAllPresentation(): void {
+        this._destroyHomeUI();
+        this._destroyCurrentScene();
+        this._destroyWinScene();
+    }
+
+    private _destroyHomeUI(): void {
+        if (!this._homeUI) {
+            return;
+        }
+        this._homeUI.destroy();
+        this._homeUI = null;
+    }
+
+    private _destroyCurrentScene(): void {
+        if (!this._currentScene) {
+            return;
+        }
+        this._currentScene.destroy();
+        this._currentScene = null;
+    }
+
+    private _destroyWinScene(): void {
         if (!this._currentWinScene) {
             return;
         }
         this._currentWinScene.destroy();
         this._currentWinScene = null;
-        this.startLevel(0);
     }
 }

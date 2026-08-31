@@ -22,9 +22,9 @@ This project focuses on a complete playable loop, custom lightweight physics, le
 - **Browser demo:** [Play Launch Puzzle Game](https://yangyjie134.github.io/LaunchPuzzleGame/)
 - **Downloadable Web build:** [Latest GitHub Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/latest)
 
-The hosted demo is served through GitHub Pages. Audio begins after the first valid drag interaction because browsers restrict autoplay.
+The hosted demo is served through GitHub Pages. Audio begins after the first valid tap/click on the cover because browsers restrict autoplay.
 
-中文说明：可直接通过上方链接在线试玩；浏览器首次有效拖拽后开始播放背景音乐。
+中文说明：可直接通过上方链接在线试玩；浏览器首次在封面进行有效点击或触摸后开始播放背景音乐。
 
 ---
 
@@ -37,13 +37,20 @@ The hosted demo is served through GitHub Pages. Audio begins after the first val
 - Platform collision
 - Ground failure and respawn
 - Portal-based level completion
+- Cover → Main Menu → Gameplay → Win product flow
+- Main Menu with fresh Level 1 start
+- Built-in How to Play instructions
+- Pause overlay with Resume, current-level Restart, Main Menu, and session Mute
 - Data-driven level loading with `LevelData` and `LevelLoader`
-- Final win screen with `WinScene`
+- Final win screen with Play Again and Main Menu actions
 - Custom lightweight `PhysicsEngine`
 - Sunny morning visual theme
 - Keyboard reset with `R`
-- Background music (BGM) started by the first valid drag interaction
+- Keyboard pause/resume with `P`
+- Mobile direct drag, aim, and release input with a larger invisible acquisition radius
+- Background music (BGM) started by the first valid cover interaction
 - Sound effects (SFX) for launch, collision, portal clear, and failure
+- Global session mute shared across menu, gameplay, pause, and win states
 
 ---
 
@@ -51,10 +58,13 @@ The hosted demo is served through GitHub Pages. Audio begins after the first val
 
 | Action | Input |
 |---|---|
-| Start aiming | Mouse down near the ball |
+| Open Main Menu | Tap/click the cover |
+| Start aiming | Mouse down or touch near the ball |
 | Aim and charge | Drag opposite the launch direction |
-| Launch | Release mouse |
+| Launch | Release mouse or touch |
 | Reset current level | Press `R` |
+| Pause / resume | Press `P` or use the Pause button |
+| Mute / unmute | Open Pause and use `MUTE: ON/OFF` |
 
 ---
 
@@ -63,7 +73,8 @@ The hosted demo is served through GitHub Pages. Audio begins after the first val
 1. Open **LayaAir IDE 3**.
 2. Open the `LaunchPuzzleGame-Laya/` project folder.
 3. Run or preview the project from the editor.
-4. Use the mouse to drag the orb and press `R` to reset the current level.
+4. Tap/click the cover, choose **PLAY**, then drag the orb directly with a mouse or one finger.
+5. Press `R` to restart the current level or `P` to pause/resume.
 
 For the downloadable Web build, extract the Release archive and serve it through local HTTP instead of opening it with `file://`. The hosted GitHub Pages build is linked in **Play Online** above.
 
@@ -102,6 +113,10 @@ Implemented and verified within the current scope:
 - Sunny morning background
 - Improved aim preview visibility
 - `R` key reset
+- Cover, Main Menu, and How to Play presentation
+- Pause/resume, current-level restart, return-to-menu, and session mute
+- Direct mobile drag input with touch-friendly acquisition
+- Play Again and Main Menu completion actions
 
 Current testing has not found obvious corner-sticking or tunneling issues.
 
@@ -151,7 +166,7 @@ LaunchPuzzleGame-Laya/
 
 ## Audio and Credits
 
-`AudioManager` manages the implemented BGM and gameplay SFX. BGM begins after the first valid player drag, while scene transitions, `WinScene`, and restart flow do not stack additional music playback. Collision SFX consumes existing wall/platform collision signals and uses a short cooldown to avoid repeated fixed-step triggers.
+`AudioManager` manages the implemented BGM and gameplay SFX. BGM begins after the first valid cover tap/click, while scene transitions, `WinScene`, and restart flow do not stack additional music playback. The pause menu's global mute keeps the unlocked BGM session intact and does not require a second autoplay gesture after unmuting. Collision SFX consumes existing wall/platform collision signals and uses a short cooldown to avoid repeated fixed-step triggers.
 
 | Type / Event | Source | Author | License |
 |---|---|---|---|
@@ -165,7 +180,7 @@ Detailed runtime paths and integration notes are recorded in [`LaunchPuzzleGame-
 
 ## Current Limitations
 
-- Audio uses fixed in-code volumes and does not provide a settings UI.
+- Audio uses fixed in-code volumes. Mute is session-only, with no volume slider or persistence after refresh.
 - The current project scope is intentionally limited to three levels.
 - The hosted build is a portfolio demo, not a commercial or store release.
 
@@ -180,4 +195,4 @@ No project-wide license is currently declared. Third-party engine files, LayaAir
 This project is part of a small-game practice portfolio.
 The goal is not to build a large commercial game, but to demonstrate a complete, playable, explainable, and maintainable gameplay loop.
 
-中文说明：这是一个基于 LayaAir 3 + TypeScript 的个人 2D 发射解谜项目，由本人独立开发。当前范围包含三关可玩流程、自定义轻量物理、关卡数据驱动、失败重生、传送门通关、BGM 与四类 SFX；项目定位为学习和作品集展示，不是商业发行游戏。
+中文说明：这是一个基于 LayaAir 3 + TypeScript 的个人 2D 发射解谜项目，由本人独立开发。当前范围包含封面、主菜单、玩法说明、暂停与静音、移动端直接拖拽、三关可玩流程、自定义轻量物理、失败重生、传送门通关、BGM 与四类 SFX；项目定位为学习和作品集展示，不是商业发行游戏。

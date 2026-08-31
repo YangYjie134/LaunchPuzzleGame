@@ -6,10 +6,12 @@ import { LevelData } from "../levels/LevelData";
 import { LevelLoader } from "../levels/LevelLoader";
 import { PhysicsEngine, RectBounds } from "../physics/PhysicsEngine";
 import { AudioManager } from "../audio/AudioManager";
+import { PauseUI } from "../ui/PauseUI";
 
 export interface IGameSceneCallbacks {
     onReset: () => void;
     onComplete: () => void;
+    onMainMenu: () => void;
 }
 
 /**
@@ -57,6 +59,9 @@ export class GameScene {
     private _state: OrbState = 'ready';
     private _dragX: number = 0;
     private _dragY: number = 0;
+    private _paused: boolean = false;
+    private _pauseUI: PauseUI | null = null;
+    private _pauseButton: Laya.Sprite;
 
     // ── 物理（R4.4：接入 PhysicsEngine） ──────────────────────────
     /** 固定步长累加器，由 _stepPhysics() 累加/消耗，PhysicsEngine 自身不持有此状态 */
@@ -67,6 +72,12 @@ export class GameScene {
     // ── 常量 ──────────────────────────────────────────────────────
     /** 鼠标点击必须在此半径内才能开始拖拽 */
     private static readonly CLICK_RADIUS = 42;
+    /** Mobile keeps the visual BALL_RADIUS unchanged while easing touch acquisition. */
+    private static readonly MOBILE_CLICK_RADIUS = 64;
+    private static readonly PAUSE_HIT_X = 652;
+    private static readonly PAUSE_HIT_Y = 14;
+    private static readonly PAUSE_HIT_W = 128;
+    private static readonly PAUSE_HIT_H = 60;
 
     // ─────────────────────────────────────────────────────────────
     constructor(levelIndex: number, callbacks: IGameSceneCallbacks) {
@@ -142,6 +153,20 @@ export class GameScene {
 
         // 失败线（底部红色地面）
         const ground = new Laya.Sprite();
+        const dangerEdgeY = GameConfig.CANVAS_H - 6;
+        const thornColors = ["#c94f49", "#d95f54", "#bf4643"];
+        for (let x = 0, cluster = 0; x < GameConfig.CANVAS_W; x += 24, cluster++) {
+            const highTip = cluster % 3 === 0 ? 13 : cluster % 3 === 1 ? 10 : 8;
+            ground.graphics.drawPoly(0, 0, [
+                x, dangerEdgeY,
+                x + 4, dangerEdgeY - 6,
+                x + 8, dangerEdgeY - 3,
+                x + 12, dangerEdgeY - highTip,
+                x + 16, dangerEdgeY - 4,
+                x + 21, dangerEdgeY - 8,
+                x + 24, dangerEdgeY,
+            ], thornColors[cluster % thornColors.length]);
+        }
         ground.graphics.drawRect(
             0, GameConfig.CANVAS_H - 6,
             GameConfig.CANVAS_W, 6,
@@ -149,13 +174,47 @@ export class GameScene {
         );
         this.container.addChild(ground);
 
-        // 地面标签
+        // 地面标签：保留底部危险区位置与红色边界，仅补充轻量警示包装。
+        const dangerLabelX = GameConfig.CANVAS_W / 2 - 68;
+        const dangerLabelY = GameConfig.CANVAS_H - 35;
+        const dangerBadge = new Laya.Sprite();
+        dangerBadge.graphics.drawRoundRect(
+            0, 3, 136, 26,
+            9, 9, 9, 9,
+            "rgba(83,52,54,0.16)"
+        );
+        dangerBadge.graphics.drawRoundRect(
+            0, 0, 136, 26,
+            9, 9, 9, 9,
+            "rgba(255,248,245,0.94)", "#e96b5a", 2
+        );
+        dangerBadge.pos(dangerLabelX, dangerLabelY);
+        this.container.addChild(dangerBadge);
+
         const groundLabel = new Laya.Text();
-        groundLabel.text     = "— DANGER ZONE —";
-        groundLabel.color    = "#cc4444";
-        groundLabel.fontSize = 11;
-        groundLabel.pos(GameConfig.CANVAS_W / 2 - 52, GameConfig.CANVAS_H - 20);
+        groundLabel.text          = "DANGER ZONE";
+        groundLabel.color         = "#b9403a";
+        groundLabel.fontSize      = 12;
+        groundLabel.bold          = true;
+        groundLabel.width         = 136;
+        groundLabel.height        = 26;
+        groundLabel.align         = "center";
+        groundLabel.valign        = "middle";
+        groundLabel.pos(dangerLabelX, dangerLabelY);
         this.container.addChild(groundLabel);
+
+        // 平台装饰层只读取现有矩形数据，不参与碰撞或改变平台 bounds。
+        const platformDecorLayer = new Laya.Sprite();
+        for (const platformData of this._level.platforms) {
+            this._drawPlatformPresentation(
+                platformDecorLayer,
+                platformData.x,
+                platformData.y,
+                platformData.w,
+                platformData.h
+            );
+        }
+        this.container.addChild(platformDecorLayer);
 
         // 平台（关卡数据驱动；R4.4 起同时收集 bounds 供 PhysicsEngine 碰撞检测）
         const platformsLayer = new Laya.Sprite();
@@ -172,6 +231,17 @@ export class GameScene {
             this._level.target.y,
             this._level.target.radius ?? GameConfig.TARGET_RADIUS
         );
+        const targetDecor = new Laya.Sprite();
+        const targetR = this._target.radius;
+        targetDecor.graphics.drawCircle(0, 4, targetR + 13, "rgba(53,76,96,0.10)");
+        targetDecor.graphics.drawCircle(0, 0, targetR + 18, "rgba(93,218,164,0.08)");
+        targetDecor.graphics.drawCircle(
+            0, 0, targetR + 10,
+            "rgba(0,0,0,0)", "rgba(59,155,122,0.26)", 4
+        );
+        targetDecor.pos(this._target.x, this._target.y);
+        this.container.addChild(targetDecor);
+
         const targetSp = new Laya.Sprite();
         this._target.drawTo(targetSp);
         this.container.addChild(targetSp);
@@ -204,9 +274,20 @@ export class GameScene {
         Laya.timer.frameLoop(1, this, this._update);
     }
 
-    /** R 键重置（复用原 Reset 按钮的 onReset 回调，语义不变） */
+    /** R restarts the level; P toggles Pause/Resume only where valid. */
     private _onKeyDown(e: Laya.Event): void {
+        if (e.keyCode === Laya.Keyboard.P) {
+            if (this._paused) {
+                this._resumeFromPause();
+            } else {
+                this._enterPause();
+            }
+            return;
+        }
         if (e.keyCode === Laya.Keyboard.R) {
+            if (this._paused) {
+                return;
+            }
             this._callbacks.onReset();
         }
     }
@@ -214,42 +295,259 @@ export class GameScene {
     /** 能量球外观（绘制一次，后续只移动 Sprite） */
     private _drawOrbGraphics(): void {
         const r = GameConfig.BALL_RADIUS;
-        // 外光晕
-        this._ballSprite.graphics.drawCircle(0, 0, r,       "#e94560", "#ff88aa", 2);
-        // 内核高光
-        this._ballSprite.graphics.drawCircle(0, 0, r * 0.4, "#ffccdd");
+        // Decorative halo and shadow expand only the presentation, never BALL_RADIUS.
+        this._ballSprite.graphics.drawCircle(0, 5, r + 5, "rgba(53,76,96,0.16)");
+        this._ballSprite.graphics.drawCircle(
+            0, 0, r + 9,
+            "rgba(233,69,96,0.10)", "rgba(255,255,255,0.56)", 2
+        );
+        this._ballSprite.graphics.drawCircle(0, 0, r, "#e94560", "#fff0f4", 3);
+        this._ballSprite.graphics.drawCircle(-r * 0.28, -r * 0.32, r * 0.34, "#ffd5df");
+    }
+
+    private _drawPlatformPresentation(
+        layer: Laya.Sprite,
+        x: number,
+        y: number,
+        width: number,
+        height: number
+    ): void {
+        const corner = Math.min(7, Math.max(4, Math.min(width, height) * 0.24));
+        layer.graphics.drawRoundRect(
+            x + 4, y + 6, width, height,
+            corner, corner, corner, corner,
+            "rgba(53,76,96,0.18)"
+        );
+        layer.graphics.drawRoundRect(
+            x - 3, y - 3, width + 6, height + 6,
+            corner + 2, corner + 2, corner + 2, corner + 2,
+            "rgba(255,255,255,0.22)", "rgba(255,255,255,0.58)", 2
+        );
+        layer.graphics.drawLine(
+            x + Math.min(9, width * 0.18),
+            y - 1,
+            x + width - Math.min(9, width * 0.18),
+            y - 1,
+            "rgba(255,255,255,0.72)",
+            2
+        );
     }
 
     private _buildUI(): void {
+        const hud = new Laya.Sprite();
+        hud.graphics.drawRoundRect(
+            0, 5, 260, 68,
+            18, 18, 18, 18,
+            "rgba(53,76,96,0.16)"
+        );
+        hud.graphics.drawRoundRect(
+            0, 0, 260, 68,
+            18, 18, 18, 18,
+            "rgba(255,250,239,0.96)", "rgba(255,255,255,0.92)", 2
+        );
+
+        // Cover-style energy-orb emblem and small portal cue keep the HUD in-family.
+        hud.graphics.drawCircle(28, 25, 15, "rgba(233,107,90,0.12)");
+        hud.graphics.drawCircle(28, 25, 11, "rgba(0,0,0,0)", "rgba(233,107,90,0.42)", 2);
+        hud.graphics.drawCircle(28, 25, 7, "#e96b5a", "#fff0ea", 2);
+        hud.graphics.drawCircle(26, 23, 2.5, "#ffd8cf");
+        hud.graphics.drawCircle(232, 22, 8, "rgba(102,201,161,0.10)", "#66c9a1", 2);
+        hud.graphics.drawCircle(232, 22, 3, "#66c9a1");
+
+        hud.graphics.drawRoundRect(
+            50, 38, 192, 22,
+            8, 8, 8, 8,
+            "rgba(47,100,113,0.92)"
+        );
+        hud.graphics.drawCircle(52, 22, 2.5, "#f4b65f");
+        hud.graphics.drawCircle(59, 19, 2, "#f4b65f");
+        hud.graphics.drawCircle(66, 18, 1.5, "#66c9a1");
+        hud.size(260, 73);
+        hud.pos(14, 10);
+        this.container.addChild(hud);
+
         const levelLabel = new Laya.Text();
         levelLabel.text     = `Level ${this._levelIndex + 1}`;
-        levelLabel.color    = "#ffffff";
-        levelLabel.fontSize = 22;
+        levelLabel.color    = "#2a3a55";
+        levelLabel.fontSize = 19;
         levelLabel.bold     = true;
-        levelLabel.pos(20, 18);
+        levelLabel.width    = 171;
+        levelLabel.pos(71, 17);
         this.container.addChild(levelLabel);
 
         this._hintText = new Laya.Text();
         this._hintText.text     = this._level.hint ?? "Drag the energy orb to charge";
-        this._hintText.color    = "#aaaacc";
-        this._hintText.fontSize = 14;
-        this._hintText.pos(20, 48);
+        this._hintText.color    = "#fff8e8";
+        this._hintText.fontSize = 13;
+        this._hintText.width    = 171;
+        this._hintText.height   = 18;
+        this._hintText.overflow = "shrink";
+        this._hintText.pos(71, 50);
         this.container.addChild(this._hintText);
+
+        if (Laya.Browser.onMobile) {
+            const mobileHint = new Laya.Text();
+            mobileHint.text = "DRAG • AIM • RELEASE";
+            mobileHint.color = "#2f6471";
+            mobileHint.fontSize = 13;
+            mobileHint.bold = true;
+            mobileHint.pos(20, 74);
+            this.container.addChild(mobileHint);
+        }
+
+        this._buildPauseButton();
+    }
+
+    private _buildPauseButton(): void {
+        const hit = new Laya.Sprite();
+        hit.graphics.drawRect(
+            0, 0,
+            GameScene.PAUSE_HIT_W, GameScene.PAUSE_HIT_H,
+            "rgba(0,0,0,0)"
+        );
+        hit.size(GameScene.PAUSE_HIT_W, GameScene.PAUSE_HIT_H);
+        hit.pos(GameScene.PAUSE_HIT_X, GameScene.PAUSE_HIT_Y);
+        hit.mouseEnabled = true;
+
+        const shadow = new Laya.Sprite();
+        shadow.graphics.drawRoundRect(
+            0, 0, 54, 48,
+            17, 17, 17, 17,
+            "rgba(53,76,96,0.18)"
+        );
+        shadow.pos(38, 10);
+        shadow.size(54, 48);
+        hit.addChild(shadow);
+
+        const face = new Laya.Sprite();
+        face.pos(37, 6);
+        face.size(54, 48);
+        hit.addChild(face);
+
+        const label = new Laya.Text();
+        label.text = "Ⅱ";
+        label.color = "#294d55";
+        label.fontSize = 23;
+        label.bold = true;
+        label.width = 54;
+        label.height = 48;
+        label.align = "center";
+        label.valign = "middle";
+        face.addChild(label);
+
+        const paint = (fill: string): void => {
+            face.graphics.clear();
+            face.graphics.drawRoundRect(
+                0, 0, 54, 48,
+                17, 17, 17, 17,
+                fill, "rgba(255,255,255,0.56)", 2
+            );
+            face.graphics.drawLine(12, 6, 42, 6, "rgba(255,255,255,0.32)", 1);
+        };
+        paint("rgba(199,234,219,0.48)");
+
+        hit.on(Laya.Event.MOUSE_OVER, this, () => paint("rgba(218,242,231,0.62)"));
+        hit.on(Laya.Event.MOUSE_OUT, this, () => paint("rgba(199,234,219,0.48)"));
+        hit.on(Laya.Event.MOUSE_DOWN, this, (event: Laya.Event) => {
+            event.stopPropagation();
+            paint("rgba(169,216,197,0.72)");
+        });
+        hit.on(Laya.Event.MOUSE_UP, this, (event: Laya.Event) => {
+            event.stopPropagation();
+            paint("rgba(218,242,231,0.62)");
+        });
+        hit.on(Laya.Event.CLICK, this, this._onPauseButtonClick);
+
+        this._pauseButton = hit;
+        this.container.addChild(hit);
+        this._syncPauseButtonVisibility();
+    }
+
+    private _onPauseButtonClick(event: Laya.Event): void {
+        event.stopPropagation();
+        this._enterPause();
+    }
+
+    private _isInsidePauseHitRegion(x: number, y: number): boolean {
+        return x >= GameScene.PAUSE_HIT_X &&
+            x <= GameScene.PAUSE_HIT_X + GameScene.PAUSE_HIT_W &&
+            y >= GameScene.PAUSE_HIT_Y &&
+            y <= GameScene.PAUSE_HIT_Y + GameScene.PAUSE_HIT_H;
+    }
+
+    private _isPausableState(): boolean {
+        return this._state === 'ready' || this._state === 'dragging' || this._state === 'flying';
+    }
+
+    private _enterPause(): void {
+        if (this._paused || !this._isPausableState()) {
+            return;
+        }
+
+        if (this._state === 'dragging') {
+            this._state = 'ready';
+            this._aimLayer.graphics.clear();
+        }
+
+        this._paused = true;
+        this._syncPauseButtonVisibility();
+        const pauseUI = new PauseUI({
+            onResume: () => this._resumeFromPause(),
+            onRestart: () => this._callbacks.onReset(),
+            onMainMenu: () => this._callbacks.onMainMenu(),
+            onToggleMute: () => AudioManager.toggleMute(),
+            isMuted: () => AudioManager.isMuted(),
+        });
+        this._pauseUI = pauseUI;
+        this.container.addChild(pauseUI.container);
+    }
+
+    private _resumeFromPause(): void {
+        if (!this._paused) {
+            return;
+        }
+        this._paused = false;
+        this._destroyPauseUI();
+        this._syncPauseButtonVisibility();
+    }
+
+    private _destroyPauseUI(): void {
+        if (!this._pauseUI) {
+            return;
+        }
+        this._pauseUI.destroy();
+        this._pauseUI = null;
+    }
+
+    private _syncPauseButtonVisibility(): void {
+        if (!this._pauseButton) {
+            return;
+        }
+        this._pauseButton.visible = !this._paused && this._isPausableState();
     }
 
     // ── 鼠标事件 ──────────────────────────────────────────────────
 
     private _onMouseDown(): void {
-        // 只有 ready 状态可以开始拖拽
-        if (this._state !== 'ready') return;
+        if (this._paused) return;
 
         const mx = Laya.stage.mouseX;
         const my = Laya.stage.mouseY;
+
+        // Defensive stage-level isolation in addition to button propagation stop.
+        if (this._isInsidePauseHitRegion(mx, my)) return;
+
+        // 只有 ready 状态可以开始拖拽
+        if (this._state !== 'ready') return;
+
         const dx = mx - this._ball.x;
         const dy = my - this._ball.y;
 
         // 必须点在能量球附近
-        if (Math.sqrt(dx * dx + dy * dy) > GameScene.CLICK_RADIUS) return;
+        const acquisitionRadius = Laya.Browser.onMobile
+            ? GameScene.MOBILE_CLICK_RADIUS
+            : GameScene.CLICK_RADIUS;
+        if (Math.sqrt(dx * dx + dy * dy) > acquisitionRadius) return;
 
         // 首次真实玩家交互（拖拽蓄力开始）：启动 BGM。playBgmOnce() 内部有
         // _bgmStarted 标记短路，切关/Restart 后再次触发本函数不会重复播放。
@@ -261,17 +559,19 @@ export class GameScene {
     }
 
     private _onMouseMove(): void {
+        if (this._paused) return;
         if (this._state !== 'dragging') return;
         this._dragX = Laya.stage.mouseX;
         this._dragY = Laya.stage.mouseY;
     }
 
     private _onMouseUp(): void {
+        if (this._paused) return;
         if (this._state !== 'dragging') return;
         this._launch();
 
         // 有效发射后播放 launch SFX（短拖拽取消时 state 仍为 ready，不播放）
-        if (this._state === 'flying') {
+        if ((this._state as OrbState) === 'flying') {
             AudioManager.playLaunchSfx();
         }
     }
@@ -306,6 +606,8 @@ export class GameScene {
 
     // ── 主循环（每帧） ────────────────────────────────────────────
     private _update(): void {
+        if (this._paused) return;
+
         const dt = Math.min(Laya.timer.delta / 1000, 0.05);
 
         // 瞄准可视化（仅 dragging 状态）
@@ -336,11 +638,13 @@ export class GameScene {
         ) {
             this._onPortalReached();
             AudioManager.playPortalSfx();
+            this._syncPauseButtonVisibility();
             return;
         }
 
         // 提示文字
         this._updateHint();
+        this._syncPauseButtonVisibility();
     }
 
     // ── 蓄力可视化 ────────────────────────────────────────────────
@@ -518,6 +822,8 @@ export class GameScene {
     // ── 销毁 ──────────────────────────────────────────────────────
     destroy(): void {
         Laya.timer.clearAll(this);
+        this._destroyPauseUI();
+        this._pauseButton.offAllCaller(this);
         Laya.stage.off(Laya.Event.MOUSE_DOWN, this, this._onMouseDown);
         Laya.stage.off(Laya.Event.MOUSE_MOVE, this, this._onMouseMove);
         Laya.stage.off(Laya.Event.MOUSE_UP,   this, this._onMouseUp);
