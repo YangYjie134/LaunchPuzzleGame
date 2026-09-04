@@ -13,10 +13,16 @@ LaunchPuzzleGame source tree or generated Web distribution. 本文件仅记录�
 - Full license text: `LICENSES/LayaAir-MIT.txt`
 
 The project uses LayaAir for rendering, input, UI, timers, scene execution, and
-Web publishing. LayaAir material present in the source tree or generated output
-includes engine type declarations, generated runtime libraries, generated
-internal UI files, and default project-template images such as the component
-atlas and `layaAir.png`.
+Web publishing. LayaAir material in this repository includes:
+
+- `LaunchPuzzleGame-Laya/engine/types/`
+- `LaunchPuzzleGame-Laya/assets/atlas/comp/`
+- `LaunchPuzzleGame-Laya/assets/resources/layaAir.png`
+- Generated Web runtime libraries, internal UI files, and splash assets
+
+The 38 component PNG files and `layaAir.png` in the project were hash-matched
+against the corresponding LayaAir 3.3.11 project-template files during the
+publishing audit.
 
 LaunchPuzzleGame does not use LayaAir Box2D, `RigidBody`, or `Collider`
 components for gameplay physics. Its launch and platform collision behavior is
@@ -28,13 +34,13 @@ The following audio is dedicated to the public domain under CC0 1.0 Universal.
 Attribution is not required by CC0, but source details are retained for
 traceability.
 
-| Packaged file | Work | Author | Source | License |
+| Project file | Work | Author | Source | License |
 | --- | --- | --- | --- | --- |
-| `resources/audio/bgm.mp3` | Cozy Puzzle In-Game 3 | MintoDog | https://opengameart.org/content/cozy-puzzle-in-game-3 | CC0 1.0 |
-| `resources/audio/sfx_launch.mp3` | Boost or Launch or Thruster Sound Effect (`boost.mp3`) | EZduzziteh | https://opengameart.org/content/boost-or-launch-or-thruster-sound-effect | CC0 1.0 |
-| `resources/audio/sfx_collision.wav` | Metal Impact Sounds (`thud3.wav`) | BMacZero | https://opengameart.org/content/metal-impact-sounds | CC0 1.0 |
-| `resources/audio/sfx_portal.wav` | Teleport (`172206__fins__teleport.wav`) | fins | https://opengameart.org/content/teleport | CC0 1.0 |
-| `resources/audio/sfx_fail.mp3` | Game Over (`gameover.mp3`) | GreyFrogGames | https://opengameart.org/content/game-over-10 | CC0 1.0 |
+| `LaunchPuzzleGame-Laya/assets/resources/audio/bgm.mp3` | Cozy Puzzle In-Game 3 | MintoDog | https://opengameart.org/content/cozy-puzzle-in-game-3 | CC0 1.0 |
+| `LaunchPuzzleGame-Laya/assets/resources/audio/sfx_launch.mp3` | Boost or Launch or Thruster Sound Effect (`boost.mp3`) | EZduzziteh | https://opengameart.org/content/boost-or-launch-or-thruster-sound-effect | CC0 1.0 |
+| `LaunchPuzzleGame-Laya/assets/resources/audio/sfx_collision.wav` | Metal Impact Sounds (`thud3.wav`) | BMacZero | https://opengameart.org/content/metal-impact-sounds | CC0 1.0 |
+| `LaunchPuzzleGame-Laya/assets/resources/audio/sfx_portal.wav` | Teleport (`172206__fins__teleport.wav`) | fins | https://opengameart.org/content/teleport | CC0 1.0 |
+| `LaunchPuzzleGame-Laya/assets/resources/audio/sfx_fail.mp3` | Game Over (`gameover.mp3`) | GreyFrogGames | https://opengameart.org/content/game-over-10 | CC0 1.0 |
 
 CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
 
