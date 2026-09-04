@@ -1,172 +1,140 @@
 # Launch Puzzle Game
 
-> Personal project / 个人项目 | Independently developed / 独立开发
+**Reverse-drag. Read the predicted path. Chain rebounds into the portal.**
 
-![Launch Puzzle Game gameplay flow: aim, platform bounce, and level completion](docs/showcase/gameplay-preview.gif)
+A complete 2D browser puzzle built with **LayaAir 3** and **TypeScript**. Three compact levels progress from a direct shot to a platform bank shot and a multi-bounce finale, with failure/respawn, pause controls, sound, and a finished Cover → Menu → Win flow.
 
-*Gameplay flow preview assembled from captured in-game states: aim and charge, platform bounce, and level completion.*
+[▶ Play Online](https://yangyjie134.github.io/LaunchPuzzleGame/) · [🎬 Watch the 45-second Preview](https://github.com/YangYjie134/LaunchPuzzleGame/releases/download/v1.0.0/launch-puzzle-game-v1.0.0-preview.mp4) · [⬇ Download v1.0.0](https://github.com/YangYjie134/LaunchPuzzleGame/releases/tag/v1.0.0)
 
-A small-scope 2D physics launch puzzle built with **LayaAir 3** and **TypeScript**.
+![Launch Puzzle Game cover: aim, launch, bounce, and reach the portal](docs/showcase/cover.png)
 
-Players drag backward to aim and launch an energy ball, then use gravity, wall bounces, platform collisions, and portal targets to complete each level.
+## The Game in 10 Seconds
 
-This project focuses on a complete playable loop, custom lightweight physics, level data loading, scene switching, and simple visual polish. It is a personal learning and portfolio project rather than a commercial release. Requirements, technical decisions, code integration, debugging, verification, and final acceptance were handled independently; AI tools were used as development assistants.
+1. **Drag backward** from the energy orb to aim and charge.
+2. Use the red power line and **four predicted trajectory points** to read the shot.
+3. Release, avoid the **Danger Zone**, and reach the portal—using walls and platforms when a direct route is impossible.
+
+The hosted demo starts audio only after the first valid tap/click on the cover, matching browser autoplay rules.
+
+## Three-Level Progression
+
+| Level | Challenge | What it introduces |
+|---|---|---|
+| **1 — Direct Shot** | Reach the portal in one clean arc | Reverse-drag aiming, charge, trajectory preview |
+| **2 — Bank Shot** | Bounce from the raised platform | Platform collision and rebound reading |
+| **3 — Multi-Bounce** | Route through a three-platform layout | Chained rebounds and tighter trajectory planning |
 
 <p align="center">
-  <img src="docs/showcase/platform-bounce.webp" alt="Orb bouncing from a Level 2 platform" width="49%">
-  <img src="docs/showcase/win-scene.webp" alt="Final WinScene" width="49%">
+  <img src="docs/showcase/main-menu.png" alt="Launch Puzzle Game main menu" width="49%">
+  <img src="docs/showcase/l3-multi-bounce-aiming.png" alt="Level 3 multi-bounce shot at 95 percent power" width="49%">
 </p>
 
-## Play Online
+<p align="center">
+  <img src="docs/showcase/all-levels-cleared.png" alt="All Levels Cleared final screen" width="72%">
+</p>
 
-- **Browser demo:** [Play Launch Puzzle Game](https://yangyjie134.github.io/LaunchPuzzleGame/)
-- **Downloadable Web build:** [Latest GitHub Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/latest)
+[Watch the complete 2 minute 10 second playthrough](https://github.com/YangYjie134/LaunchPuzzleGame/releases/download/v1.0.0/launch-puzzle-game-v1.0.0-full-gameplay.mp4)
 
-The hosted demo is served through GitHub Pages. Audio begins after the first valid tap/click on the cover because browsers restrict autoplay.
+## Complete Product Flow
 
-中文说明：可直接通过上方链接在线试玩；浏览器首次在封面进行有效点击或触摸后开始播放背景音乐。
+```text
+Cover → Main Menu / How To Play → Level 1 → Level 2 → Level 3 → WinScene
+```
 
----
-
-## Features
-
-- Reverse drag launch
-- Aim preview trajectory
-- Gravity-based ball movement
-- Wall bounce
-- Platform collision
-- Ground failure and respawn
-- Portal-based level completion
-- Cover → Main Menu → Gameplay → Win product flow
-- Main Menu with fresh Level 1 start
-- Built-in How to Play instructions
-- Pause overlay with Resume, current-level Restart, Main Menu, and session Mute
-- Data-driven level loading with `LevelData` and `LevelLoader`
-- Final win screen with Play Again and Main Menu actions
-- Custom lightweight `PhysicsEngine`
-- Sunny morning visual theme
-- Keyboard reset with `R`
-- Keyboard pause/resume with `P`
-- Mobile direct drag, aim, and release input with a larger invisible acquisition radius
-- Background music (BGM) started by the first valid cover interaction
-- Sound effects (SFX) for launch, collision, portal clear, and failure
-- Global session mute shared across menu, gameplay, pause, and win states
-
----
+- Cover interaction unlocks and starts BGM.
+- Main Menu offers a fresh run; How To Play explains desktop and mobile input.
+- Invalid shots can enter the Danger Zone, trigger failure feedback, and respawn the current level.
+- Pause provides Resume, current-level Restart, Main Menu, and session-wide Mute.
+- WinScene closes the three-level run with Play Again and Main Menu actions.
 
 ## Controls
 
-| Action | Input |
-|---|---|
-| Open Main Menu | Tap/click the cover |
-| Start aiming | Mouse down or touch near the ball |
-| Aim and charge | Drag opposite the launch direction |
-| Launch | Release mouse or touch |
-| Reset current level | Press `R` |
-| Pause / resume | Press `P` or use the Pause button |
-| Mute / unmute | Open Pause and use `MUTE: ON/OFF` |
+| Action | Desktop | Touch |
+|---|---|---|
+| Open Main Menu | Click the cover | Tap the cover |
+| Aim and charge | Drag backward from the orb | Drag backward with one finger |
+| Launch | Release the mouse button | Lift your finger |
+| Restart current level | `R` | Pause → Restart |
+| Pause / resume | `P` or Pause button | Pause button |
+| Mute / unmute | Pause → `MUTE: ON/OFF` | Pause → `MUTE: ON/OFF` |
 
----
+## Features
 
-## How to Run
+- Reverse-drag launch with a visible red charge line and live Power percentage
+- Four-point predicted trajectory preview
+- Gravity, wall rebounds, and circle-versus-platform collision
+- Danger Zone failure, one-second respawn, and level restart
+- Data-driven three-level progression and portal-based completion
+- Cover, Main Menu, How To Play, Pause, and WinScene presentation
+- Desktop and direct touch aiming input
+- BGM plus launch, collision, portal, and failure SFX
+- Session-wide mute without stacking or re-unlocking BGM
+- Sunny visual theme designed consistently across gameplay and UI
+
+## Run It
+
+### Play the hosted build
+
+Open the [GitHub Pages demo](https://yangyjie134.github.io/LaunchPuzzleGame/).
+
+### Run the project in LayaAir
 
 1. Open **LayaAir IDE 3**.
-2. Open the `LaunchPuzzleGame-Laya/` project folder.
+2. Open `LaunchPuzzleGame-Laya/`.
 3. Run or preview the project from the editor.
-4. Tap/click the cover, choose **PLAY**, then drag the orb directly with a mouse or one finger.
-5. Press `R` to restart the current level or `P` to pause/resume.
+4. Click/tap the cover, choose **PLAY**, then drag the orb backward and release.
 
-For the downloadable Web build, extract the Release archive and serve it through local HTTP instead of opening it with `file://`. The hosted GitHub Pages build is linked in **Play Online** above.
+### Run the downloadable Web build
 
-中文说明：使用 LayaAir 3 IDE 打开 `LaunchPuzzleGame-Laya/` 后可运行主场景；也可直接在线试玩。下载版 Web 构建应通过本地 HTTP 访问。
+Download the Web ZIP from the [v1.0.0 Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/tag/v1.0.0), extract it, and serve the folder through local HTTP. Do not open `index.html` with `file://` because browser asset and audio policies expect an HTTP origin.
 
----
+## Technical Design
 
-## Tech Stack
-
-- **LayaAir 3**
-- **TypeScript**
-- **Custom lightweight PhysicsEngine**
-
-LayaAir is used for rendering, input, UI, timer updates, scene mounting, and scene switching.
-
-This project does **not** use LayaAir Box2D.
-It does not use `RigidBody` or `Collider` components.
-
-Physics behavior is handled by a custom lightweight `PhysicsEngine`.
-
----
-
-## Current Status
-
-Current status: **completed and archived within the intended personal-project scope**. All three levels are playable, and the final LayaAir Web build and human playtest passed. This status does not imply a commercial release.
-
-Implemented and verified within the current scope:
-
-- 3 playable levels
-- Custom physics step integration
-- Fixed timestep accumulator in `GameScene`
-- Platform collision based on `Platform.getBounds()`
-- Portal detection and level switching
-- Final `WinScene`
-- Failure and respawn flow
-- Sunny morning background
-- Improved aim preview visibility
-- `R` key reset
-- Cover, Main Menu, and How to Play presentation
-- Pause/resume, current-level restart, return-to-menu, and session mute
-- Direct mobile drag input with touch-friendly acquisition
-- Play Again and Main Menu completion actions
-
-Current testing has not found obvious corner-sticking or tunneling issues.
-
----
-
-## Project Structure
-
-The LayaAir project is located in:
-
-```text
-LaunchPuzzleGame-Laya/
-```
-
-Main source structure:
+- **LayaAir 3** handles rendering, input, UI, audio, timers, and scene mounting.
+- **TypeScript** implements the gameplay, scene flow, and data model.
+- A custom lightweight **PhysicsEngine** handles numerical integration and collision response; the project does not use LayaAir Box2D, `RigidBody`, or `Collider` components.
+- `GameScene` owns runtime input, rendering, fixed-timestep scheduling, target detection, pause state, and level lifecycle.
+- `PhysicsEngine` stays independent of LayaAir display objects.
+- `LevelLoader` returns cloned level data and does not silently fall back for invalid indexes.
+- `GameManager` owns the outer Cover → Menu → Game → Win product flow.
 
 ```text
 LaunchPuzzleGame-Laya/
   src/
-    game/
-      GameConfig.ts     # Canvas size, drag settings, launch speed and core config
-      GameManager.ts    # Level switching and WinScene management
-      GameScene.ts      # Single-level runtime, input, UI, target detection and physics scheduling
-      WinScene.ts       # Final win screen
-    audio/
-      AudioManager.ts   # BGM and gameplay SFX playback
-    levels/
-      LevelData.ts      # Level data structure
-      LevelLoader.ts    # Level data source and loading logic
-    objects/
-      Ball.ts           # Ball data model
-      Platform.ts       # Platform drawing and bounds export
-      Target.ts         # Portal target data and drawing
-    physics/
-      PhysicsEngine.ts  # Custom lightweight physics step
+    audio/AudioManager.ts
+    game/GameConfig.ts
+    game/GameManager.ts
+    game/GameScene.ts
+    game/WinScene.ts
+    levels/LevelData.ts
+    levels/LevelLoader.ts
+    objects/Ball.ts
+    objects/Platform.ts
+    objects/Target.ts
+    physics/PhysicsEngine.ts
+    ui/HomeUI.ts
+    ui/PauseUI.ts
 ```
 
-## Technical Highlights
+## Verification
 
-- `GameScene` handles rendering, input, UI, timer updates, and scene lifecycle.
-- `PhysicsEngine` only handles numerical physics and does not depend on LayaAir display objects.
-- Fixed timestep accumulation helps reduce tunneling caused by large frame intervals.
-- Platform collision uses circle-rectangle bounds detection and resolution.
-- `Platform` only provides drawing and bounds data.
-- Target detection stays in `GameScene` to preserve the intended gameplay flow.
-- `LevelLoader.get(index)` returns cloned level data and does not silently fall back on invalid indexes.
-- Final completion flow is separated into `WinScene`.
+The final portfolio package is built from source baseline `a94396ed56d9c05784878509d4c726d783b3a45b`.
+
+The shipped product has **3 playable levels**, mobile touch input, the complete Cover → Main Menu / How to Play → Pause → Win flow, session Mute, BGM, and event-specific SFX.
+
+- The repository's final-product verifier passes all 38 checks.
+- A fresh isolated LayaAir Web build completes successfully.
+- The built bundle and all five audio assets respond over local HTTP.
+- An automated real-browser run reaches Cover, Main Menu, How To Play, Levels 1–3, Pause, Mute, failure/respawn, and `ALL LEVELS CLEARED!`.
+- The Release provides that exact Web build plus fresh short and complete gameplay captures.
+
+## Project Ownership
+
+This is an independently owned personal portfolio project. The developer was responsible for requirements, gameplay and technical decisions, integration, debugging, verification, and final acceptance. AI tools were used as development assistants for analysis, implementation support, and packaging; ownership of the decisions and shipped result remains with the developer.
 
 ## Audio and Credits
 
-`AudioManager` manages the implemented BGM and gameplay SFX. BGM begins after the first valid cover tap/click, while scene transitions, `WinScene`, and restart flow do not stack additional music playback. The pause menu's global mute keeps the unlocked BGM session intact and does not require a second autoplay gesture after unmuting. Collision SFX consumes existing wall/platform collision signals and uses a short cooldown to avoid repeated fixed-step triggers.
+`AudioManager` keeps BGM input-gated, prevents scene transitions from stacking music, and plays event-specific SFX with collision cooldown protection.
 
 | Type / Event | Source | Author | License |
 |---|---|---|---|
@@ -176,23 +144,14 @@ LaunchPuzzleGame-Laya/
 | Portal clear | [Teleport](https://opengameart.org/content/teleport) | fins | CC0 |
 | Failure | [Game Over](https://opengameart.org/content/game-over-10) | GreyFrogGames | CC0 |
 
-Detailed runtime paths and integration notes are recorded in [`LaunchPuzzleGame-Laya/docs/TECH_NOTES.md`](LaunchPuzzleGame-Laya/docs/TECH_NOTES.md).
+Detailed runtime paths and integration notes are in [`LaunchPuzzleGame-Laya/docs/TECH_NOTES.md`](LaunchPuzzleGame-Laya/docs/TECH_NOTES.md). Third-party notices are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-## Current Limitations
+## Scope and Licensing
 
-- Audio uses fixed in-code volumes. Mute is session-only, with no volume slider or persistence after refresh.
-- The current project scope is intentionally limited to three levels.
-- The hosted build is a portfolio demo, not a commercial or store release.
+The intended portfolio scope is complete at three levels. Audio uses fixed in-code volumes; mute is session-only and is not persisted after refresh.
 
-## Licensing
-
-No project-wide license is currently declared. Third-party engine files, LayaAir template assets, and CC0 audio are documented separately in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md). That notice does not grant permission to reuse the project's original code, documentation, screenshots, or game design.
+No project-wide license is currently declared. `THIRD_PARTY_NOTICES.md` documents third-party engine files, template assets, and CC0 audio; it does not grant permission to reuse the project's original code, documentation, screenshots, or game design.
 
 ---
 
-## Notes
-
-This project is part of a small-game practice portfolio.
-The goal is not to build a large commercial game, but to demonstrate a complete, playable, explainable, and maintainable gameplay loop.
-
-中文说明：这是一个基于 LayaAir 3 + TypeScript 的个人 2D 发射解谜项目，由本人独立开发。当前范围包含封面、主菜单、玩法说明、暂停与静音、移动端直接拖拽、三关可玩流程、自定义轻量物理、失败重生、传送门通关、BGM 与四类 SFX；项目定位为学习和作品集展示，不是商业发行游戏。
+中文简介：这是一个基于 LayaAir 3 与 TypeScript 的完整 2D 发射解谜作品。玩家反向拖拽能量球，结合蓄力线与轨迹点规划射击，通过平台和墙面反弹完成三关递进挑战；项目包含封面、主菜单、玩法说明、失败重生、暂停/重开/返回菜单/静音、BGM 与四类 SFX，以及最终通关场景。可直接通过顶部链接在线试玩、观看视频或下载最终 Web 版本。
