@@ -5,5 +5,14 @@
     },
     "addons": {
         "laya.ui": "ui2"
+    },
+    "resolution": {
+        "designWidth": 800,
+        "designHeight": 600,
+        "scaleMode": "showall",
+        "alignH": "center",
+        "alignV": "middle",
+        "screenMode": "none",
+        "backgroundColor": "#acd6eb"
     }
 }

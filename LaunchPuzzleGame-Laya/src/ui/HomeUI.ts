@@ -3,6 +3,7 @@ import { GameConfig } from "../game/GameConfig";
 export interface IHomeUICallbacks {
     onCoverAccepted: () => void;
     onPlay: () => void;
+    onUiFeedback: () => void;
 }
 
 type HomeScreen = "cover" | "menu" | "howToPlay";
@@ -132,12 +133,12 @@ export class HomeUI {
         this.container.addChild(flow);
 
         const play = this._makeButton("PLAY", 270, 348, 260, 58, true, () => {
-            this._activateOnce(this._callbacks.onPlay);
+            this._activateUiOnce(this._callbacks.onPlay);
         });
         this.container.addChild(play);
 
         const howToPlay = this._makeButton("HOW TO PLAY", 270, 424, 260, 52, false, () => {
-            this._showHowToPlay();
+            this._activateUiOnce(() => this._showHowToPlay());
         });
         this.container.addChild(howToPlay);
 
@@ -190,7 +191,7 @@ export class HomeUI {
         this.container.addChild(mobile);
 
         const back = this._makeButton("BACK", 300, 462, 200, 48, false, () => {
-            this.showMainMenu();
+            this._activateUiOnce(() => this.showMainMenu());
         });
         this.container.addChild(back);
     }
@@ -207,6 +208,20 @@ export class HomeUI {
             return;
         }
         this._actionLocked = true;
+        action();
+    }
+
+    /** UI audio is best-effort; the original action always runs synchronously and independently. */
+    private _activateUiOnce(action: () => void): void {
+        if (this._actionLocked) {
+            return;
+        }
+        this._actionLocked = true;
+        try {
+            this._callbacks.onUiFeedback();
+        } catch (e) {
+            console.warn("[HomeUI] UI feedback failed; continuing action:", e);
+        }
         action();
     }
 
@@ -363,25 +378,35 @@ export class HomeUI {
         button.pos(x, y);
         button.mouseEnabled = true;
 
+        // The outer button owns the unchanged hitbox. Only this child visual moves on press.
+        const visual = new Laya.Sprite();
+        visual.size(width, height);
+        visual.mouseEnabled = false;
+        button.addChild(visual);
+
         const text = this._makeText(label, 20, primary ? "#ffffff" : "#2f4d57", true, width);
         text.align = "center";
         text.height = height;
         text.valign = "middle";
-        button.addChild(text);
+        visual.addChild(text);
 
         const paint = (state: "normal" | "hover" | "pressed"): void => {
             const fill = primary
                 ? (state === "pressed" ? "#d85849" : state === "hover" ? "#f27b68" : "#e96b5a")
                 : (state === "pressed" ? "#a9d8c5" : state === "hover" ? "#d2efe2" : "#bfe5d4");
-            button.graphics.clear();
-            button.graphics.drawRoundRect(0, 0, width, height, 16, 16, 16, 16, fill);
+            const shadowOffset = state === "pressed" ? 1 : 4;
+            const shadow = primary ? "rgba(125,55,49,0.24)" : "rgba(47,77,87,0.20)";
+            visual.pos(0, state === "pressed" ? 3 : 0);
+            visual.graphics.clear();
+            visual.graphics.drawRoundRect(0, shadowOffset, width, height, 16, 16, 16, 16, shadow);
+            visual.graphics.drawRoundRect(0, 0, width, height, 16, 16, 16, 16, fill);
         };
 
         paint("normal");
         button.on(Laya.Event.MOUSE_OVER, this, () => paint("hover"));
         button.on(Laya.Event.MOUSE_OUT, this, () => paint("normal"));
         button.on(Laya.Event.MOUSE_DOWN, this, () => paint("pressed"));
-        button.on(Laya.Event.MOUSE_UP, this, () => paint("hover"));
+        button.on(Laya.Event.MOUSE_UP, this, () => paint(Laya.Browser.onMobile ? "normal" : "hover"));
         button.on(Laya.Event.CLICK, this, onClick);
         this._interactiveTargets.push(button);
         return button;

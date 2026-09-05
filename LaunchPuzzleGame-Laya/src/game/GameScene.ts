@@ -74,6 +74,9 @@ export class GameScene {
     private static readonly CLICK_RADIUS = 42;
     /** Mobile keeps the visual BALL_RADIUS unchanged while easing touch acquisition. */
     private static readonly MOBILE_CLICK_RADIUS = 64;
+    /** Mobile edge compensation uses Stage-space units, matching stage.mouseX/Y and game geometry. */
+    private static readonly MOBILE_EDGE_MARGIN = 24;
+    private static readonly MIN_MOBILE_FULL_POWER_RATIO = 0.70;
     private static readonly PAUSE_HIT_X = 652;
     private static readonly PAUSE_HIT_Y = 14;
     private static readonly PAUSE_HIT_W = 128;
@@ -173,35 +176,6 @@ export class GameScene {
             "#cc2222"
         );
         this.container.addChild(ground);
-
-        // 地面标签：保留底部危险区位置与红色边界，仅补充轻量警示包装。
-        const dangerLabelX = GameConfig.CANVAS_W / 2 - 68;
-        const dangerLabelY = GameConfig.CANVAS_H - 35;
-        const dangerBadge = new Laya.Sprite();
-        dangerBadge.graphics.drawRoundRect(
-            0, 3, 136, 26,
-            9, 9, 9, 9,
-            "rgba(83,52,54,0.16)"
-        );
-        dangerBadge.graphics.drawRoundRect(
-            0, 0, 136, 26,
-            9, 9, 9, 9,
-            "rgba(255,248,245,0.94)", "#e96b5a", 2
-        );
-        dangerBadge.pos(dangerLabelX, dangerLabelY);
-        this.container.addChild(dangerBadge);
-
-        const groundLabel = new Laya.Text();
-        groundLabel.text          = "DANGER ZONE";
-        groundLabel.color         = "#b9403a";
-        groundLabel.fontSize      = 12;
-        groundLabel.bold          = true;
-        groundLabel.width         = 136;
-        groundLabel.height        = 26;
-        groundLabel.align         = "center";
-        groundLabel.valign        = "middle";
-        groundLabel.pos(dangerLabelX, dangerLabelY);
-        this.container.addChild(groundLabel);
 
         // 平台装饰层只读取现有矩形数据，不参与碰撞或改变平台 bounds。
         const platformDecorLayer = new Laya.Sprite();
@@ -385,16 +359,6 @@ export class GameScene {
         this._hintText.pos(71, 50);
         this.container.addChild(this._hintText);
 
-        if (Laya.Browser.onMobile) {
-            const mobileHint = new Laya.Text();
-            mobileHint.text = "DRAG • AIM • RELEASE";
-            mobileHint.color = "#2f6471";
-            mobileHint.fontSize = 13;
-            mobileHint.bold = true;
-            mobileHint.pos(20, 74);
-            this.container.addChild(mobileHint);
-        }
-
         this._buildPauseButton();
     }
 
@@ -577,6 +541,50 @@ export class GameScene {
     }
 
     // ── 发射（反向充能） ──────────────────────────────────────────
+    private _getMobileUsableEdgeDistance(pullX: number, pullY: number, pullDist: number): number {
+        // pull points toward launch; the finger moves in the opposite drag direction.
+        const dragDirX = -pullX / pullDist;
+        const dragDirY = -pullY / pullDist;
+        const minX = GameScene.MOBILE_EDGE_MARGIN;
+        const maxX = GameConfig.CANVAS_W - GameScene.MOBILE_EDGE_MARGIN;
+        const minY = GameScene.MOBILE_EDGE_MARGIN;
+        const maxY = GameConfig.CANVAS_H - GameScene.MOBILE_EDGE_MARGIN;
+        let edgeDistance = Number.POSITIVE_INFINITY;
+
+        if (dragDirX > 0) {
+            edgeDistance = Math.min(edgeDistance, (maxX - this._ball.x) / dragDirX);
+        } else if (dragDirX < 0) {
+            edgeDistance = Math.min(edgeDistance, (minX - this._ball.x) / dragDirX);
+        }
+        if (dragDirY > 0) {
+            edgeDistance = Math.min(edgeDistance, (maxY - this._ball.y) / dragDirY);
+        } else if (dragDirY < 0) {
+            edgeDistance = Math.min(edgeDistance, (minY - this._ball.y) / dragDirY);
+        }
+
+        return Math.max(0, edgeDistance);
+    }
+
+    private _getEffectiveLaunchPower(
+        pullX: number,
+        pullY: number,
+        pullDist: number,
+        cappedDragDistance: number
+    ): number {
+        const desktopPower = cappedDragDistance / GameConfig.MAX_DRAG;
+        if (!Laya.Browser.onMobile) {
+            return desktopPower;
+        }
+
+        const usableEdgeDistance = this._getMobileUsableEdgeDistance(pullX, pullY, pullDist);
+        const minimumFullPowerDistance = GameConfig.MAX_DRAG * GameScene.MIN_MOBILE_FULL_POWER_RATIO;
+        const effectiveFullPowerDistance = Math.min(
+            GameConfig.MAX_DRAG,
+            Math.max(minimumFullPowerDistance, usableEdgeDistance)
+        );
+        return Math.max(0, Math.min(pullDist / effectiveFullPowerDistance, 1));
+    }
+
     /**
      * 拖拽方向 = 鼠标相对球的偏移
      * 发射方向 = 拖拽方向的反方向（球 → 鼠标的反向）
@@ -597,7 +605,8 @@ export class GameScene {
         }
 
         const capped = Math.min(pullDist, GameConfig.MAX_DRAG);
-        const speed  = (capped / GameConfig.MAX_DRAG) * GameConfig.LAUNCH_SPEED_MAX;
+        const powerRatio = this._getEffectiveLaunchPower(pullX, pullY, pullDist, capped);
+        const speed  = powerRatio * GameConfig.LAUNCH_SPEED_MAX;
 
         this._ball.vx = (pullX / pullDist) * speed;
         this._ball.vy = (pullY / pullDist) * speed;
@@ -665,6 +674,7 @@ export class GameScene {
 
         const capped = Math.min(pullDist, GameConfig.MAX_DRAG);
         const ratio  = capped / pullDist;
+        const powerRatio = this._getEffectiveLaunchPower(pullX, pullY, pullDist, capped);
 
         // 1. 拉伸线（从球心朝鼠标方向，表示"充能拉伸"）
         const strX = bx - pullX * ratio; // 鼠标方向上的终点
@@ -678,7 +688,7 @@ export class GameScene {
         );
 
         // 2. 预测轨迹（反向速度 + 重力，最多 10 个点，0.65s）
-        const speed = (capped / GameConfig.MAX_DRAG) * GameConfig.LAUNCH_SPEED_MAX;
+        const speed = powerRatio * GameConfig.LAUNCH_SPEED_MAX;
         const vx    = (pullX / pullDist) * speed;
         const vy    = (pullY / pullDist) * speed;
         const g     = GameConfig.GRAVITY;
@@ -708,7 +718,7 @@ export class GameScene {
         }
 
         // 更新力度提示
-        const pct = Math.round((capped / GameConfig.MAX_DRAG) * 100);
+        const pct = Math.round(powerRatio * 100);
         this._hintText.text  = `Release to launch  [${pct}%]`;
         this._hintText.color = "#ffffff";
     }

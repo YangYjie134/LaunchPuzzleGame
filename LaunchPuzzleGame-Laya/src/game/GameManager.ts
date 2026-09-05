@@ -33,6 +33,7 @@ export class GameManager {
         const home = new HomeUI({
             onCoverAccepted: () => this._acceptCover(),
             onPlay: () => this.startNewGame(),
+            onUiFeedback: () => AudioManager.playUiClickFromUserGesture(),
         });
         this._homeUI = home;
         Laya.stage.addChild(home.container);
@@ -44,6 +45,7 @@ export class GameManager {
         const home = new HomeUI({
             onCoverAccepted: () => this._acceptCover(),
             onPlay: () => this.startNewGame(),
+            onUiFeedback: () => AudioManager.playUiClickFromUserGesture(),
         });
         this._homeUI = home;
         home.showMainMenu();
@@ -107,6 +109,7 @@ export class GameManager {
         if (!this._homeUI) {
             return;
         }
+        AudioManager.unlockSfxFromUserGesture();
         AudioManager.restartBgm();
         this._homeUI.showMainMenu();
     }
