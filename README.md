@@ -1,10 +1,10 @@
 # Launch Puzzle Game
 
-**Reverse-drag. Read the predicted path. Chain rebounds into the portal.**
+**Reverse-drag. Predict the path. Use rebounds. Reach the portal.**
 
-A complete 2D browser puzzle built with **LayaAir 3** and **TypeScript**. Three compact levels progress from a direct shot to a platform bank shot and a multi-bounce finale, with failure/respawn, pause controls, sound, and a finished Cover → Menu → Win flow.
+A complete 3-level browser puzzle built with **LayaAir 3** and **TypeScript**, with custom lightweight physics, trajectory prediction, desktop/mobile input, and a finished Cover → Menu → Game → Win flow.
 
-[▶ Play Online](https://yangyjie134.github.io/LaunchPuzzleGame/) · [🎬 Watch the 45-second Preview](https://github.com/YangYjie134/LaunchPuzzleGame/releases/download/v1.0.0/launch-puzzle-game-v1.0.0-preview.mp4) · [⬇ Download v1.0.0](https://github.com/YangYjie134/LaunchPuzzleGame/releases/tag/v1.0.0)
+[▶ Play Online](https://yangyjie134.github.io/LaunchPuzzleGame/) · [Source Code](https://github.com/YangYjie134/LaunchPuzzleGame) · [Latest Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/latest) · [🎬 Representative Gameplay Preview](https://github.com/YangYjie134/LaunchPuzzleGame/releases/download/v1.0.0/launch-puzzle-game-v1.0.0-preview.mp4)
 
 ![Launch Puzzle Game cover: aim, launch, bounce, and reach the portal](docs/showcase/cover.png)
 
@@ -33,7 +33,7 @@ The hosted demo starts audio only after the first valid tap/click on the cover, 
   <img src="docs/showcase/all-levels-cleared.png" alt="All Levels Cleared final screen" width="72%">
 </p>
 
-[Watch the complete 2 minute 10 second playthrough](https://github.com/YangYjie134/LaunchPuzzleGame/releases/download/v1.0.0/launch-puzzle-game-v1.0.0-full-gameplay.mp4)
+[Watch a representative full gameplay capture (v1.0.0 recording)](https://github.com/YangYjie134/LaunchPuzzleGame/releases/download/v1.0.0/launch-puzzle-game-v1.0.0-full-gameplay.mp4)
 
 ## Complete Product Flow
 
@@ -71,6 +71,19 @@ Cover → Main Menu / How To Play → Level 1 → Level 2 → Level 3 → WinSce
 - Session-wide mute without stacking or re-unlocking BGM
 - Sunny visual theme designed consistently across gameplay and UI
 
+## Mobile Compatibility
+
+Version 1.0.1 improves the mobile browser experience without changing the game rules or physics:
+
+- Centered 800×600 `showall` presentation for mobile landscape
+- Touch-friendly main-menu button feedback
+- Browser/iOS audio-unlock handling
+- Mobile-specific collision and failure audio mastering
+- Direction-aware, edge-compensated reverse drag so full launch power remains reachable near phone screen edges
+- Launch still occurs only after a real pointer/touch release
+
+`LAUNCH_SPEED_MAX`, the custom `PhysicsEngine`, level geometry, and desktop launch behavior remain unchanged.
+
 ## Run It
 
 ### Play the hosted build
@@ -86,7 +99,7 @@ Open the [GitHub Pages demo](https://yangyjie134.github.io/LaunchPuzzleGame/).
 
 ### Run the downloadable Web build
 
-Download the Web ZIP from the [v1.0.0 Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/tag/v1.0.0), extract it, and serve the folder through local HTTP. Do not open `index.html` with `file://` because browser asset and audio policies expect an HTTP origin.
+Download the Web ZIP from the [latest Release](https://github.com/YangYjie134/LaunchPuzzleGame/releases/latest), extract it, and serve the folder through local HTTP. Do not open `index.html` with `file://` because browser asset and audio policies expect an HTTP origin.
 
 ## Technical Design
 
@@ -118,15 +131,12 @@ LaunchPuzzleGame-Laya/
 
 ## Verification
 
-The final portfolio package is built from source baseline `a94396ed56d9c05784878509d4c726d783b3a45b`.
+The current build is protected by automated verification covering gameplay constants, scene flow, audio assets and routing, mobile presentation, and input invariants. The v1.0.1 mobile compatibility patch was additionally accepted on a real iPhone.
 
-The shipped product has **3 playable levels**, mobile touch input, the complete Cover → Main Menu / How to Play → Pause → Win flow, session Mute, BGM, and event-specific SFX.
-
-- The repository's final-product verifier passes all 38 checks.
+- Core launch physics and level geometry remained protected during the maintenance update.
 - A fresh isolated LayaAir Web build completes successfully.
-- The built bundle and all five audio assets respond over local HTTP.
-- An automated real-browser run reaches Cover, Main Menu, How To Play, Levels 1–3, Pause, Mute, failure/respawn, and `ALL LEVELS CLEARED!`.
-- The Release provides that exact Web build plus fresh short and complete gameplay captures.
+- The published package includes the expected desktop and mobile audio assets.
+- Static/build checks are treated as engineering evidence; final device behavior was accepted separately through human iPhone testing.
 
 ## Project Ownership
 
@@ -154,4 +164,4 @@ No project-wide license is currently declared. `THIRD_PARTY_NOTICES.md` document
 
 ---
 
-中文简介：这是一个基于 LayaAir 3 与 TypeScript 的完整 2D 发射解谜作品。玩家反向拖拽能量球，结合蓄力线与轨迹点规划射击，通过平台和墙面反弹完成三关递进挑战；项目包含封面、主菜单、玩法说明、失败重生、暂停/重开/返回菜单/静音、BGM 与四类 SFX，以及最终通关场景。可直接通过顶部链接在线试玩、观看视频或下载最终 Web 版本。
+中文简介：这是一个基于 LayaAir 3 与 TypeScript 的完整三关 2D 发射解谜作品。玩家反向拖拽能量球，结合蓄力线与轨迹点规划射击，通过平台和墙面反弹抵达传送门；项目包含封面、主菜单、玩法说明、失败重生、暂停/重开/返回菜单/静音、BGM 与事件音效，以及最终通关场景。v1.0.1 在不改变核心玩法、物理和关卡的前提下完善了移动端画面、触控、音频解锁与边缘拖拽体验。
