@@ -50,6 +50,44 @@
     static isMuted() {
       return Laya.SoundManager.muted;
     }
+    /**
+     * 直接用户手势入口：尽力恢复 WebAudio，但永不等待、永不改变 BGM/音量/静音状态。
+     * 调用方必须继续同步执行原页面动作。
+     */
+    static unlockSfxFromUserGesture() {
+      const ctx = _AudioManager._getAudioContext();
+      if (!ctx) {
+        return;
+      }
+      if (ctx.state === "running") {
+        _AudioManager._warmCriticalGameplaySfx();
+        return;
+      }
+      void _AudioManager._resumeAudioContext(ctx, "unlock").then((running) => {
+        if (running && ctx.state === "running") {
+          _AudioManager._warmCriticalGameplaySfx();
+        }
+      });
+    }
+    /**
+     * 主菜单通用按钮反馈。running 时立即播放；否则仅在 resume 成功且确已 running 后播放。
+     * 返回 void，调用方不会等待此异步音频路径。
+     */
+    static playUiClickFromUserGesture() {
+      const ctx = _AudioManager._getAudioContext();
+      if (!ctx) {
+        return;
+      }
+      if (ctx.state === "running") {
+        _AudioManager._playSfxInternal(_AudioManager.SFX_UI_CLICK_URL, "UI click");
+        return;
+      }
+      void _AudioManager._resumeAudioContext(ctx, "UI click").then((running) => {
+        if (running && ctx.state === "running") {
+          _AudioManager._playSfxInternal(_AudioManager.SFX_UI_CLICK_URL, "UI click");
+        }
+      });
+    }
     /** 有效发射后播放一次；短拖拽取消不会调用本接口 */
     static playLaunchSfx() {
       _AudioManager._playSfxInternal(_AudioManager.SFX_LAUNCH_URL, "launch");
@@ -64,7 +102,12 @@
         return;
       }
       _AudioManager._lastCollisionSfxAtMs = now;
-      _AudioManager._playSfxInternal(_AudioManager.SFX_COLLISION_URL, "collision");
+      const mobile = Laya.Browser.onMobile;
+      _AudioManager._playSfxInternal(
+        mobile ? _AudioManager.SFX_COLLISION_MOBILE_URL : _AudioManager.SFX_COLLISION_URL,
+        "collision",
+        mobile ? _AudioManager.MOBILE_COLLISION_SFX_VOLUME : _AudioManager.COLLISION_SFX_VOLUME
+      );
     }
     /** 进入传送门并切换到 completed 状态时播放一次 */
     static playPortalSfx() {
@@ -72,9 +115,93 @@
     }
     /** 进入 respawning 失败状态时播放一次 */
     static playFailSfx() {
-      _AudioManager._playSfxInternal(_AudioManager.SFX_FAIL_URL, "fail");
+      const mobile = Laya.Browser.onMobile;
+      _AudioManager._playSfxInternal(
+        mobile ? _AudioManager.SFX_FAIL_MOBILE_URL : _AudioManager.SFX_FAIL_URL,
+        "fail",
+        mobile ? _AudioManager.MOBILE_FAIL_SFX_VOLUME : _AudioManager.FAIL_SFX_VOLUME
+      );
     }
     // ── 内部 ──────────────────────────────────────────────────────
+    static _getAudioContext() {
+      try {
+        const media = Laya.PAL && Laya.PAL.media;
+        const ctx = media && media.audioCtx;
+        if (!ctx) {
+          console.warn("[AudioManager] WebAudio context is unavailable; SFX unlock skipped.");
+          return null;
+        }
+        return ctx;
+      } catch (e) {
+        console.warn("[AudioManager] WebAudio context lookup failed; SFX unlock skipped:", e);
+        return null;
+      }
+    }
+    static _resumeAudioContext(ctx, label) {
+      if (ctx.state === "running") {
+        return Promise.resolve(true);
+      }
+      if (_AudioManager._audioResumePromise) {
+        return _AudioManager._audioResumePromise;
+      }
+      try {
+        const request = ctx.resume().then(() => ctx.state === "running").catch((e) => {
+          console.warn(`[AudioManager] WebAudio ${label} resume failed:`, e);
+          return false;
+        });
+        _AudioManager._audioResumePromise = request.then((running) => {
+          _AudioManager._audioResumePromise = null;
+          return running;
+        });
+        return _AudioManager._audioResumePromise;
+      } catch (e) {
+        console.warn(`[AudioManager] WebAudio ${label} resume threw:`, e);
+        return Promise.resolve(false);
+      }
+    }
+    /**
+     * 使用 LayaAir WebAudio 声道实际消费的 AudioDataCache 预热 collision/fail。
+     * 这里只加载并解码，不创建播放声道，不阻塞页面动作，也不会产生重复音效。
+     */
+    static _warmCriticalGameplaySfx() {
+      if (_AudioManager._criticalSfxWarmupInFlight || _AudioManager._criticalSfxWarmupReady) {
+        return;
+      }
+      try {
+        const media = Laya.PAL && Laya.PAL.media;
+        const cache = media && media.audioDataCache;
+        if (!cache) {
+          console.warn("[AudioManager] Audio data cache is unavailable; critical SFX warm-up skipped.");
+          return;
+        }
+        _AudioManager._criticalSfxWarmupInFlight = true;
+        const mobile = Laya.Browser.onMobile;
+        const urls = [
+          mobile ? _AudioManager.SFX_COLLISION_MOBILE_URL : _AudioManager.SFX_COLLISION_URL,
+          mobile ? _AudioManager.SFX_FAIL_MOBILE_URL : _AudioManager.SFX_FAIL_URL
+        ];
+        let remaining = urls.length;
+        let allLoaded = true;
+        for (const url of urls) {
+          cache.get(url, (buffer) => {
+            if (!buffer) {
+              allLoaded = false;
+            }
+            remaining -= 1;
+            if (remaining === 0) {
+              _AudioManager._criticalSfxWarmupInFlight = false;
+              _AudioManager._criticalSfxWarmupReady = allLoaded;
+              if (!allLoaded) {
+                console.warn("[AudioManager] Critical SFX warm-up was incomplete; a later gesture may retry.");
+              }
+            }
+          });
+        }
+      } catch (e) {
+        _AudioManager._criticalSfxWarmupInFlight = false;
+        console.warn("[AudioManager] Critical SFX warm-up failed:", e);
+      }
+    }
     static _playInternal() {
       Laya.SoundManager.musicVolume = _AudioManager.BGM_VOLUME;
       try {
@@ -83,10 +210,10 @@
         console.warn("[AudioManager] BGM playback failed, will not retry automatically:", e);
       }
     }
-    static _playSfxInternal(url, label) {
+    static _playSfxInternal(url, label, volume = _AudioManager.SFX_VOLUME) {
       try {
         const channel = Laya.SoundManager.playSound(url, 1);
-        channel.volume = _AudioManager.SFX_VOLUME;
+        channel.volume = volume;
       } catch (e) {
         console.warn(`[AudioManager] ${label} SFX playback failed:`, e);
       }
@@ -97,18 +224,32 @@
   /** 已批准 SFX 的运行时资源路径 */
   _AudioManager.SFX_LAUNCH_URL = "resources/audio/sfx_launch.mp3";
   _AudioManager.SFX_COLLISION_URL = "resources/audio/sfx_collision.wav";
+  _AudioManager.SFX_COLLISION_MOBILE_URL = "resources/audio/sfx_collision_mobile.wav";
   _AudioManager.SFX_PORTAL_URL = "resources/audio/sfx_portal.wav";
   _AudioManager.SFX_FAIL_URL = "resources/audio/sfx_fail.mp3";
+  _AudioManager.SFX_FAIL_MOBILE_URL = "resources/audio/sfx_fail_mobile.wav";
+  _AudioManager.SFX_UI_CLICK_URL = "resources/audio/sfx_ui_click.wav";
   /** 低音量循环播放，避免刺耳、避免抢游戏反馈音效的听觉空间 */
   _AudioManager.BGM_VOLUME = 0.22;
   /** SFX 使用独立声道音量，不修改 BGM 的 musicVolume */
   _AudioManager.SFX_VOLUME = 0.6;
+  /** 桌面端保持上一轮已验收的 collision/fail 声道音量；其余 SFX 保持 0.6。 */
+  _AudioManager.COLLISION_SFX_VOLUME = 1;
+  _AudioManager.FAIL_SFX_VOLUME = 1;
+  /** 手机母带已有更高 RMS；保留 20% 声道余量，避免贴近满幅并压过 launch/portal。 */
+  _AudioManager.MOBILE_COLLISION_SFX_VOLUME = 0.8;
+  _AudioManager.MOBILE_FAIL_SFX_VOLUME = 0.8;
   /** 固定步长物理可能在很短时间内连续上报碰撞；冷却用于避免声音堆叠 */
   _AudioManager.COLLISION_SFX_COOLDOWN_MS = 100;
   /** 是否已经启动过 BGM；true 之后 playBgmOnce() 直接短路，防止重复叠加播放 */
   _AudioManager._bgmStarted = false;
   /** 最近一次实际触发碰撞音效的引擎时间 */
   _AudioManager._lastCollisionSfxAtMs = -Infinity;
+  /** 合并同一时刻的解锁请求；settle 后清空，失败时允许下一次手势重试。 */
+  _AudioManager._audioResumePromise = null;
+  /** collision/fail 预热状态；失败时复位，允许后续成功手势再次尝试。 */
+  _AudioManager._criticalSfxWarmupInFlight = false;
+  _AudioManager._criticalSfxWarmupReady = false;
   var AudioManager = _AudioManager;
 
   // src/levels/LevelLoader.ts
@@ -349,11 +490,11 @@
       flow.pos(160, 307);
       this.container.addChild(flow);
       const play = this._makeButton("PLAY", 270, 348, 260, 58, true, () => {
-        this._activateOnce(this._callbacks.onPlay);
+        this._activateUiOnce(this._callbacks.onPlay);
       });
       this.container.addChild(play);
       const howToPlay = this._makeButton("HOW TO PLAY", 270, 424, 260, 52, false, () => {
-        this._showHowToPlay();
+        this._activateUiOnce(() => this._showHowToPlay());
       });
       this.container.addChild(howToPlay);
       const note = this._makeText("3 sunny launch puzzles", 14, "#70839a", false, 540);
@@ -398,7 +539,7 @@
       mobile.pos(150, 398);
       this.container.addChild(mobile);
       const back = this._makeButton("BACK", 300, 462, 200, 48, false, () => {
-        this.showMainMenu();
+        this._activateUiOnce(() => this.showMainMenu());
       });
       this.container.addChild(back);
     }
@@ -413,6 +554,19 @@
         return;
       }
       this._actionLocked = true;
+      action();
+    }
+    /** UI audio is best-effort; the original action always runs synchronously and independently. */
+    _activateUiOnce(action) {
+      if (this._actionLocked) {
+        return;
+      }
+      this._actionLocked = true;
+      try {
+        this._callbacks.onUiFeedback();
+      } catch (e) {
+        console.warn("[HomeUI] UI feedback failed; continuing action:", e);
+      }
       action();
     }
     _resetScreen() {
@@ -593,21 +747,29 @@
       button.size(width, height);
       button.pos(x, y);
       button.mouseEnabled = true;
+      const visual = new Laya.Sprite();
+      visual.size(width, height);
+      visual.mouseEnabled = false;
+      button.addChild(visual);
       const text = this._makeText(label, 20, primary ? "#ffffff" : "#2f4d57", true, width);
       text.align = "center";
       text.height = height;
       text.valign = "middle";
-      button.addChild(text);
+      visual.addChild(text);
       const paint = (state) => {
         const fill = primary ? state === "pressed" ? "#d85849" : state === "hover" ? "#f27b68" : "#e96b5a" : state === "pressed" ? "#a9d8c5" : state === "hover" ? "#d2efe2" : "#bfe5d4";
-        button.graphics.clear();
-        button.graphics.drawRoundRect(0, 0, width, height, 16, 16, 16, 16, fill);
+        const shadowOffset = state === "pressed" ? 1 : 4;
+        const shadow = primary ? "rgba(125,55,49,0.24)" : "rgba(47,77,87,0.20)";
+        visual.pos(0, state === "pressed" ? 3 : 0);
+        visual.graphics.clear();
+        visual.graphics.drawRoundRect(0, shadowOffset, width, height, 16, 16, 16, 16, shadow);
+        visual.graphics.drawRoundRect(0, 0, width, height, 16, 16, 16, 16, fill);
       };
       paint("normal");
       button.on(Laya.Event.MOUSE_OVER, this, () => paint("hover"));
       button.on(Laya.Event.MOUSE_OUT, this, () => paint("normal"));
       button.on(Laya.Event.MOUSE_DOWN, this, () => paint("pressed"));
-      button.on(Laya.Event.MOUSE_UP, this, () => paint("hover"));
+      button.on(Laya.Event.MOUSE_UP, this, () => paint(Laya.Browser.onMobile ? "normal" : "hover"));
       button.on(Laya.Event.CLICK, this, onClick);
       this._interactiveTargets.push(button);
       return button;
@@ -1104,46 +1266,6 @@
         "#cc2222"
       );
       this.container.addChild(ground);
-      const dangerLabelX = GameConfig.CANVAS_W / 2 - 68;
-      const dangerLabelY = GameConfig.CANVAS_H - 35;
-      const dangerBadge = new Laya.Sprite();
-      dangerBadge.graphics.drawRoundRect(
-        0,
-        3,
-        136,
-        26,
-        9,
-        9,
-        9,
-        9,
-        "rgba(83,52,54,0.16)"
-      );
-      dangerBadge.graphics.drawRoundRect(
-        0,
-        0,
-        136,
-        26,
-        9,
-        9,
-        9,
-        9,
-        "rgba(255,248,245,0.94)",
-        "#e96b5a",
-        2
-      );
-      dangerBadge.pos(dangerLabelX, dangerLabelY);
-      this.container.addChild(dangerBadge);
-      const groundLabel = new Laya.Text();
-      groundLabel.text = "DANGER ZONE";
-      groundLabel.color = "#b9403a";
-      groundLabel.fontSize = 12;
-      groundLabel.bold = true;
-      groundLabel.width = 136;
-      groundLabel.height = 26;
-      groundLabel.align = "center";
-      groundLabel.valign = "middle";
-      groundLabel.pos(dangerLabelX, dangerLabelY);
-      this.container.addChild(groundLabel);
       const platformDecorLayer = new Laya.Sprite();
       for (const platformData of this._level.platforms) {
         this._drawPlatformPresentation(
@@ -1336,15 +1458,6 @@
       this._hintText.overflow = "shrink";
       this._hintText.pos(71, 50);
       this.container.addChild(this._hintText);
-      if (Laya.Browser.onMobile) {
-        const mobileHint = new Laya.Text();
-        mobileHint.text = "DRAG • AIM • RELEASE";
-        mobileHint.color = "#2f6471";
-        mobileHint.fontSize = 13;
-        mobileHint.bold = true;
-        mobileHint.pos(20, 74);
-        this.container.addChild(mobileHint);
-      }
       this._buildPauseButton();
     }
     _buildPauseButton() {
@@ -1511,6 +1624,39 @@
       }
     }
     // ── 发射（反向充能） ──────────────────────────────────────────
+    _getMobileUsableEdgeDistance(pullX, pullY, pullDist) {
+      const dragDirX = -pullX / pullDist;
+      const dragDirY = -pullY / pullDist;
+      const minX = _GameScene.MOBILE_EDGE_MARGIN;
+      const maxX = GameConfig.CANVAS_W - _GameScene.MOBILE_EDGE_MARGIN;
+      const minY = _GameScene.MOBILE_EDGE_MARGIN;
+      const maxY = GameConfig.CANVAS_H - _GameScene.MOBILE_EDGE_MARGIN;
+      let edgeDistance = Number.POSITIVE_INFINITY;
+      if (dragDirX > 0) {
+        edgeDistance = Math.min(edgeDistance, (maxX - this._ball.x) / dragDirX);
+      } else if (dragDirX < 0) {
+        edgeDistance = Math.min(edgeDistance, (minX - this._ball.x) / dragDirX);
+      }
+      if (dragDirY > 0) {
+        edgeDistance = Math.min(edgeDistance, (maxY - this._ball.y) / dragDirY);
+      } else if (dragDirY < 0) {
+        edgeDistance = Math.min(edgeDistance, (minY - this._ball.y) / dragDirY);
+      }
+      return Math.max(0, edgeDistance);
+    }
+    _getEffectiveLaunchPower(pullX, pullY, pullDist, cappedDragDistance) {
+      const desktopPower = cappedDragDistance / GameConfig.MAX_DRAG;
+      if (!Laya.Browser.onMobile) {
+        return desktopPower;
+      }
+      const usableEdgeDistance = this._getMobileUsableEdgeDistance(pullX, pullY, pullDist);
+      const minimumFullPowerDistance = GameConfig.MAX_DRAG * _GameScene.MIN_MOBILE_FULL_POWER_RATIO;
+      const effectiveFullPowerDistance = Math.min(
+        GameConfig.MAX_DRAG,
+        Math.max(minimumFullPowerDistance, usableEdgeDistance)
+      );
+      return Math.max(0, Math.min(pullDist / effectiveFullPowerDistance, 1));
+    }
     /**
      * 拖拽方向 = 鼠标相对球的偏移
      * 发射方向 = 拖拽方向的反方向（球 → 鼠标的反向）
@@ -1529,7 +1675,8 @@
         return;
       }
       const capped = Math.min(pullDist, GameConfig.MAX_DRAG);
-      const speed = capped / GameConfig.MAX_DRAG * GameConfig.LAUNCH_SPEED_MAX;
+      const powerRatio = this._getEffectiveLaunchPower(pullX, pullY, pullDist, capped);
+      const speed = powerRatio * GameConfig.LAUNCH_SPEED_MAX;
       this._ball.vx = pullX / pullDist * speed;
       this._ball.vy = pullY / pullDist * speed;
       this._state = "flying";
@@ -1581,6 +1728,7 @@
         return;
       const capped = Math.min(pullDist, GameConfig.MAX_DRAG);
       const ratio = capped / pullDist;
+      const powerRatio = this._getEffectiveLaunchPower(pullX, pullY, pullDist, capped);
       const strX = bx - pullX * ratio;
       const strY = by - pullY * ratio;
       this._aimLayer.graphics.drawLine(
@@ -1597,7 +1745,7 @@
         4,
         "rgba(255, 80, 80, 0.55)"
       );
-      const speed = capped / GameConfig.MAX_DRAG * GameConfig.LAUNCH_SPEED_MAX;
+      const speed = powerRatio * GameConfig.LAUNCH_SPEED_MAX;
       const vx = pullX / pullDist * speed;
       const vy = pullY / pullDist * speed;
       const g = GameConfig.GRAVITY;
@@ -1622,7 +1770,7 @@
           1.5
         );
       }
-      const pct = Math.round(capped / GameConfig.MAX_DRAG * 100);
+      const pct = Math.round(powerRatio * 100);
       this._hintText.text = `Release to launch  [${pct}%]`;
       this._hintText.color = "#ffffff";
     }
@@ -1735,6 +1883,9 @@
   _GameScene.CLICK_RADIUS = 42;
   /** Mobile keeps the visual BALL_RADIUS unchanged while easing touch acquisition. */
   _GameScene.MOBILE_CLICK_RADIUS = 64;
+  /** Mobile edge compensation uses Stage-space units, matching stage.mouseX/Y and game geometry. */
+  _GameScene.MOBILE_EDGE_MARGIN = 24;
+  _GameScene.MIN_MOBILE_FULL_POWER_RATIO = 0.7;
   _GameScene.PAUSE_HIT_X = 652;
   _GameScene.PAUSE_HIT_Y = 14;
   _GameScene.PAUSE_HIT_W = 128;
@@ -1888,7 +2039,8 @@
       this._destroyAllPresentation();
       const home = new HomeUI({
         onCoverAccepted: () => this._acceptCover(),
-        onPlay: () => this.startNewGame()
+        onPlay: () => this.startNewGame(),
+        onUiFeedback: () => AudioManager.playUiClickFromUserGesture()
       });
       this._homeUI = home;
       Laya.stage.addChild(home.container);
@@ -1898,7 +2050,8 @@
       this._destroyAllPresentation();
       const home = new HomeUI({
         onCoverAccepted: () => this._acceptCover(),
-        onPlay: () => this.startNewGame()
+        onPlay: () => this.startNewGame(),
+        onUiFeedback: () => AudioManager.playUiClickFromUserGesture()
       });
       this._homeUI = home;
       home.showMainMenu();
@@ -1952,6 +2105,7 @@
       if (!this._homeUI) {
         return;
       }
+      AudioManager.unlockSfxFromUserGesture();
       AudioManager.restartBgm();
       this._homeUI.showMainMenu();
     }
